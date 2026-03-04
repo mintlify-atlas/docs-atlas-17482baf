@@ -1,0 +1,127 @@
+---
+title: OyasaiAdminTools
+description: Administrative tools for player and rank management
+---
+
+OyasaiAdminTools provides commands for managing players, ranks, and administrative functions on the Oyasai server.
+
+## Overview
+
+- **Version**: 1.0-SNAPSHOT
+- **API Version**: 1.21
+- **Dependencies**: AdvancedBan (soft), TokenManager (soft), WorldBorder (soft)
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Rank management" icon="ranking-star">
+    Promote and demote players between ranks
+  </Card>
+  <Card title="Player info" icon="user">
+    View detailed player information
+  </Card>
+  <Card title="World expansion" icon="expand">
+    Expand personal world borders
+  </Card>
+  <Card title="Ban system" icon="ban">
+    Enhanced ban management with AdvancedBan
+  </Card>
+</CardGroup>
+
+## Commands
+
+### Rank management (Syokaku)
+
+<AccordionGroup>
+  <Accordion title="/syokaku promote <player>">
+    Promote a player to the next rank.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+  
+  <Accordion title="/syokaku demote <player>">
+    Demote a player to the previous rank.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+  
+  <Accordion title="/syokaku getrank <player>">
+    View a player's current rank.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+  
+  <Accordion title="/syokaku iscandidate <player>">
+    Check if a player is a candidate for promotion.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+  
+  <Accordion title="/syokaku seerequirements <rank>">
+    View requirements for a specific rank.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+  
+  <Accordion title="/syokaku seeplayerinfo <player>">
+    View detailed player information including rank progress.
+    
+    **Permission**: `oyasai.syokaku`
+  </Accordion>
+</AccordionGroup>
+
+### Player management
+
+<Accordion title="/playermanager">
+  Administrative player management interface.
+  
+  **Aliases**: `/pm`, `/pmanager`
+  
+  **Permission**: `oyasai.playermanager`
+</Accordion>
+
+### World management
+
+<Accordion title="/kakutyo <player> <points>">
+  Expand a player's personal world border using points.
+  
+  **Permission**: `oyasai.kakutyo`
+</Accordion>
+
+### Ban system
+
+<Accordion title="/ban">
+  Enhanced ban command with AdvancedBan integration.
+  
+  **Aliases**: `/oyasaiban`, `/aban`, `/tempban`
+</Accordion>
+
+## Permissions
+
+<ParamField path="oyasai.syokaku" type="permission" default="op">
+  Access to all syokaku (rank) commands.
+</ParamField>
+
+<ParamField path="oyasai.syokakumanager" type="permission" default="op">
+  Access to syokaku management interface.
+</ParamField>
+
+<ParamField path="oyasai.playermanager" type="permission" default="op">
+  Access to player management commands.
+</ParamField>
+
+<ParamField path="oyasai.kakutyo" type="permission" default="op">
+  Ability to expand world borders for players.
+</ParamField>
+
+## Integration
+
+This plugin integrates with:
+
+- **AdvancedBan**: Enhanced ban management
+- **TokenManager**: Point-based world expansion
+- **WorldBorder**: Personal world border management
+
+## Source code
+
+The plugin source is located at `plugins/OyasaiAdminTools/` in the repository.

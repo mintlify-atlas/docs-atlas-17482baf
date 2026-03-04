@@ -1,0 +1,40 @@
+---
+title: OyasaiPets
+description: Pet summoning system for Oyasai Server
+---
+
+OyasaiPets provides a pet summoning system that allows players to spawn companion animals.
+
+## Overview
+
+- **Version**: 1.0-SNAPSHOT
+- **API Version**: 1.21
+- **Dependencies**: TokenManager (required)
+
+## Features
+
+<Card title="BigWolf summoning" icon="paw">
+  Summon a loyal wolf companion to follow you around the server.
+</Card>
+
+## Commands
+
+<Accordion title="/bigwolf">
+  Summon a BigWolf pet to accompany you.
+  
+  This command spawns a wolf entity that will follow the player. The pet system integrates with TokenManager for any potential costs or requirements.
+  
+  **Usage**: `/bigwolf`
+</Accordion>
+
+## Integration
+
+This plugin requires **TokenManager** for token-based pet management and costs.
+
+## Source code
+
+The plugin source is located at `plugins/OyasaiPets/` in the repository.
+
+Key files:
+- `src/main/kotlin/me/marzipan/OyasaiPets/BigWolfPlugin.kt` - Main plugin class
+- `src/main/resources/plugin.yml` - Plugin configuration

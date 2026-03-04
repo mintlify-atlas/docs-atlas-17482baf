@@ -1,0 +1,440 @@
+---
+title: 'Monitoring'
+description: 'Monitor server health, performance, and player activity'
+---
+
+## Overview
+
+Oyasai Server Platform implements comprehensive monitoring through Docker health checks, RCON remote console access, and automated logging systems.
+
+## Health Checks
+
+The Minecraft server container includes built-in health monitoring:
+
+```typescript packages/cdktf/src/stacks/docker-stack.ts
+healthcheck: {
+  test: ["mc-health"],
+  startPeriod: "1m",
+  interval: "5s",
+  retries: 20,
+}
+```
+
+### Health Check Configuration
+
+<ParamField path="test" type="array" required>
+  Command to execute for health check: `["mc-health"]`
+</ParamField>
+
+<ParamField path="startPeriod" type="string" default="1m">
+  Grace period during server startup before health checks begin
+</ParamField>
+
+<ParamField path="interval" type="string" default="5s">
+  Time between health check executions
+</ParamField>
+
+<ParamField path="retries" type="number" default="20">
+  Number of consecutive failures before marking container unhealthy
+</ParamField>
+
+### Monitoring Health Status
+
+Check the health status of running containers:
+
+```bash
+# View container health status
+docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Health}}"
+
+# View detailed health check logs
+docker inspect --format='{{json .State.Health}}' minecraft-main | jq
+
+# Follow health check events
+docker events --filter event=health_status
+```
+
+## RCON Remote Console
+
+RCON provides remote administration capabilities:
+
+### Connection Configuration
+
+<CodeGroup>
+```typescript Environment Configuration
+env: envs({
+  RCON_PASSWORD: this.secrets.RCON_PASSWORD,
+}),
+ports: ports({
+  tcp: [25575],  // RCON port
+})
+```
+
+```bash Connect via RCON Client
+# Using mcrcon
+mcrcon -H localhost -P 25575 -p <RCON_PASSWORD>
+
+# Execute commands
+mcrcon -H localhost -P 25575 -p <RCON_PASSWORD> "list"
+mcrcon -H localhost -P 25575 -p <RCON_PASSWORD> "tps"
+```
+</CodeGroup>
+
+### Common RCON Commands
+
+<AccordionGroup>
+  <Accordion title="Server Status" icon="circle-info">
+    ```bash
+    # List online players
+    list
+    
+    # Check server TPS
+    tps
+    
+    # View server version
+    version
+    
+    # Check memory usage
+    memory
+    ```
+  </Accordion>
+  
+  <Accordion title="Player Management" icon="users">
+    ```bash
+    # Kick player
+    kick <player> <reason>
+    
+    # Ban player
+    ban <player> <reason>
+    
+    # Whitelist management
+    whitelist add <player>
+    whitelist remove <player>
+    whitelist list
+    ```
+  </Accordion>
+  
+  <Accordion title="Server Control" icon="power-off">
+    ```bash
+    # Save world
+    save-all
+    
+    # Stop server gracefully
+    stop
+    
+    # Reload configuration
+    reload
+    
+    # Broadcast message
+    say <message>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Logging System
+
+The server implements rolling logs with timestamps:
+
+```typescript
+env: envs({
+  ENABLE_ROLLING_LOGS: true,
+  LOG_TIMESTAMP: true,
+})
+```
+
+### Log Configuration
+
+<ParamField path="ENABLE_ROLLING_LOGS" type="boolean" default="false">
+  Enable automatic log rotation to prevent disk space issues
+</ParamField>
+
+<ParamField path="LOG_TIMESTAMP" type="boolean" default="false">
+  Add timestamps to all log entries for easier debugging
+</ParamField>
+
+### Viewing Logs
+
+<CodeGroup>
+```bash Docker Logs
+# Follow container logs in real-time
+docker logs -f minecraft-main
+
+# View last 100 lines
+docker logs --tail 100 minecraft-main
+
+# View logs since specific time
+docker logs --since 1h minecraft-main
+
+# View logs with timestamps
+docker logs -t minecraft-main
+```
+
+```bash Server Logs
+# Access server log files
+docker exec minecraft-main cat /data/logs/latest.log
+
+# View archived logs
+docker exec minecraft-main ls -lh /data/logs/
+
+# Search logs for errors
+docker exec minecraft-main grep -i error /data/logs/latest.log
+```
+</CodeGroup>
+
+## Container Monitoring
+
+### Resource Usage
+
+Monitor container resource consumption:
+
+```bash
+# Real-time resource stats
+docker stats minecraft-main
+
+# Resource usage in JSON format
+docker stats --no-stream --format "{{json .}}" minecraft-main | jq
+```
+
+### Memory Allocation
+
+Memory is configured per environment:
+
+<Tabs>
+  <Tab title="Production">
+    ```typescript
+    MEMORY: "28G"
+    ```
+    28GB allocated for production workloads
+  </Tab>
+  
+  <Tab title="Development">
+    ```typescript
+    MEMORY: "12G"
+    ```
+    12GB allocated for development testing
+  </Tab>
+  
+  <Tab title="Local">
+    ```typescript
+    MEMORY: "5G"
+    ```
+    5GB allocated for local development
+  </Tab>
+</Tabs>
+
+## Network Monitoring
+
+### Port Status
+
+Monitor network connectivity:
+
+```bash
+# Check listening ports
+docker port minecraft-main
+
+# Test Minecraft connection
+telnet localhost 25565
+
+# Test RCON connection
+telnet localhost 25575
+
+# Test BlueMap web interface
+curl -I http://localhost:8100
+```
+
+### Network Traffic
+
+```bash
+# View network stats
+docker stats --format "table {{.Name}}\t{{.NetIO}}" minecraft-main
+
+# Inspect network configuration
+docker network inspect network
+```
+
+## Database Monitoring
+
+The MariaDB container requires separate monitoring:
+
+```typescript packages/cdktf/src/stacks/docker-stack.ts
+const mariadbContainer = new Container(
+  this,
+  this.envAwareId("mariadb-container"),
+  {
+    image: images.mariadb.imageId,
+    name: "mariadb",
+    restart: "unless-stopped",
+    env: envs({
+      MARIADB_ROOT_PASSWORD: this.secrets.MARIADB_PASSWORD,
+    }),
+  },
+);
+```
+
+### Database Health Checks
+
+```bash
+# Check MariaDB container status
+docker exec mariadb mysqladmin ping -p
+
+# View database processes
+docker exec mariadb mysqladmin processlist -p
+
+# Check database size
+docker exec mariadb mysql -p -e "SELECT table_schema, SUM(data_length + index_length) / 1024 / 1024 AS 'Size (MB)' FROM information_schema.tables GROUP BY table_schema;"
+```
+
+## Restart Policies
+
+All production containers use automatic restart policies:
+
+```typescript
+restart: "unless-stopped"
+```
+
+This ensures:
+- Containers restart automatically after crashes
+- Containers remain stopped if manually stopped
+- Server survives host reboots
+
+## Graceful Shutdown
+
+The Minecraft container implements graceful shutdown:
+
+```typescript
+destroyGraceSeconds: 2 * 60  // 2 minutes
+```
+
+<Steps>
+  <Step title="Save world data">
+    Server receives SIGTERM and begins save-all
+  </Step>
+  
+  <Step title="Disconnect players">
+    Players are disconnected with shutdown message
+  </Step>
+  
+  <Step title="Complete shutdown">
+    Server has 2 minutes to complete shutdown sequence
+  </Step>
+  
+  <Step title="Force kill">
+    If timeout expires, container is force-killed
+  </Step>
+</Steps>
+
+## Performance Optimization
+
+### JVM Flags
+
+Production servers use optimized JVM flags:
+
+```typescript
+USE_MEOWICE_FLAGS: this.environment !== "local"
+```
+
+Meowice flags provide:
+- Optimized garbage collection
+- Better memory management
+- Improved server performance
+
+<Note>
+  These flags are disabled in local development to reduce resource usage.
+</Note>
+
+## Alerting and Notifications
+
+### Custom Plugin Monitoring
+
+The OyasaiAdminTools plugin supports webhook notifications:
+
+```yaml plugins/OyasaiAdminTools/config.yml
+webhook-url: ""
+```
+
+Configure a Discord or Slack webhook URL to receive:
+- Server startup/shutdown notifications
+- Error alerts
+- Player events
+- Custom admin notifications
+
+## Monitoring Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Regular Health Checks" icon="heartbeat">
+    Monitor container health status daily to catch issues early
+  </Card>
+  
+  <Card title="Log Rotation" icon="rotate">
+    Enable rolling logs to prevent disk space exhaustion
+  </Card>
+  
+  <Card title="Resource Limits" icon="gauge-high">
+    Set appropriate memory limits based on player count and plugins
+  </Card>
+  
+  <Card title="Backup Verification" icon="circle-check">
+    Regularly verify backup integrity and restoration procedures
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Container keeps restarting" icon="rotate-exclamation">
+    Check container logs for errors:
+    ```bash
+    docker logs minecraft-main --tail 100
+    ```
+    
+    Verify health check passes:
+    ```bash
+    docker exec minecraft-main mc-health
+    ```
+    
+    Check available memory:
+    ```bash
+    docker stats minecraft-main
+    ```
+  </Accordion>
+  
+  <Accordion title="High memory usage" icon="memory">
+    Reduce allocated memory or adjust JVM flags:
+    ```bash
+    # Check current allocation
+    docker inspect minecraft-main | jq '.[0].Config.Env' | grep MEMORY
+    
+    # Monitor JVM heap usage via RCON
+    mcrcon -H localhost -P 25575 -p <PASSWORD> "memory"
+    ```
+  </Accordion>
+  
+  <Accordion title="Players can't connect" icon="network-wired">
+    Verify ports are exposed:
+    ```bash
+    docker port minecraft-main
+    netstat -tuln | grep 25565
+    ```
+    
+    Check firewall rules:
+    ```bash
+    sudo ufw status
+    ```
+    
+    Test connectivity:
+    ```bash
+    telnet localhost 25565
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Backups" icon="floppy-disk" href="/operations/backups">
+    Configure automated backup strategies
+  </Card>
+  
+  <Card title="Server Configuration" icon="gear" href="/operations/server-configuration">
+    Optimize server performance settings
+  </Card>
+</CardGroup>

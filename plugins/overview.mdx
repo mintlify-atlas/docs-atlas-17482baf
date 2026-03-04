@@ -1,0 +1,94 @@
+---
+title: Plugins overview
+description: Custom Minecraft plugins for Oyasai Server Platform
+---
+
+Oyasai Server Platform includes 10 custom Minecraft plugins built with Kotlin for the Purpur 1.21 API. These plugins provide administrative tools, player features, and server utilities.
+
+## Available plugins
+
+<CardGroup cols={2}>
+  <Card title="OyasaiUtilities" icon="wrench" href="/plugins/oyasai-utilities">
+    Core utility functions and helper methods for all plugins
+  </Card>
+  <Card title="OyasaiAdminTools" icon="user-shield" href="/plugins/oyasai-admin-tools">
+    Admin commands for player and rank management
+  </Card>
+  <Card title="OyasaiPets" icon="paw" href="/plugins/oyasai-pets">
+    Pet summoning system with BigWolf feature
+  </Card>
+  <Card title="DynamicProfile" icon="id-card" href="/plugins/dynamic-profile">
+    Dynamic player profiles and recommendations
+  </Card>
+  <Card title="EntityPose" icon="cube" href="/plugins/entity-pose">
+    Entity positioning and pose management
+  </Card>
+  <Card title="PaintTools" icon="paintbrush" href="/plugins/paint-tools">
+    Creative painting and building tools
+  </Card>
+  <Card title="SocialLikes" icon="heart" href="/plugins/social-likes">
+    Social interaction and like system (version 3)
+  </Card>
+  <Card title="SocialVotes" icon="thumbs-up" href="/plugins/social-votes">
+    Player voting and poll system
+  </Card>
+  <Card title="TPswitch" icon="arrow-right-arrow-left" href="/plugins/tpswitch">
+    Teleport switching and management
+  </Card>
+  <Card title="Vertex" icon="diagram-project" href="/plugins/vertex">
+    Core plugin framework and utilities
+  </Card>
+</CardGroup>
+
+## Plugin architecture
+
+All plugins follow a standard structure:
+
+```
+plugins/<PluginName>/
+├── build.gradle.kts          # Gradle build configuration
+├── src/
+│   └── main/
+│       ├── kotlin/           # Kotlin source code
+│       └── resources/
+│           └── plugin.yml    # Plugin metadata
+```
+
+### Build system
+
+Plugins are built using Gradle with the Shadow plugin for creating fat JARs:
+
+```bash
+# Build all plugins
+gradle build --parallel
+
+# Build specific plugin
+gradle :plugins:OyasaiUtilities:build
+```
+
+### Dependencies
+
+Common dependencies available to all plugins:
+
+- **Purpur API** (1.21): Core server API
+- **Vault API**: Economy and permissions integration
+- **TokenManager**: Token-based economy (for specific plugins)
+- **AdvancedBan**: Ban system integration
+
+## Development
+
+See [Plugin Development](/development/plugin-development) for details on creating new plugins.
+
+## Deployment
+
+Plugins are automatically included in server configurations through the Nix build system:
+
+```nix
+oyasaiPurpur {
+  plugins = with oyasai-plugins; [
+    oyasaiutilities
+    oyasaiadmintools
+    oyasaipets
+  ];
+}
+```

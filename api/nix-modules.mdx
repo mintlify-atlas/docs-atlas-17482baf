@@ -1,0 +1,295 @@
+---
+title: Nix modules
+description: Nix module system and Oyasai scope reference
+---
+
+Reference documentation for the Nix module system and Oyasai scope used in the platform.
+
+## Oyasai scope
+
+The Oyasai scope provides a curated set of packages and build tools.
+
+### Structure
+
+```nix
+oyasai-scope = lib.makeScope pkgs.newScope (
+  scopeSelf: {
+    # Build tools
+    gradle = /* ... */;
+    gradle2nix = /* ... */;
+    jdk = /* ... */;
+    jre = /* ... */;
+    
+    # Builders
+    oyasaiPurpur = /* ... */;
+    oyasaiDockerTools = /* ... */;
+    
+    # Plugin system
+    plugins-batch = /* ... */;
+    plugins = /* ... */;
+    
+    # Server packages
+    oyasai-minecraft-main = /* ... */;
+    oyasai-plugin-registry = /* ... */;
+  }
+);
+```
+
+## Build tools
+
+### gradle
+
+<ParamField path="gradle" type="derivation">
+  Gradle 9 configured with Java 25.
+</ParamField>
+
+```nix
+gradle = pkgs.gradle_9.override { java = scopeSelf.jdk; };
+```
+
+### gradle2nix
+
+<ParamField path="gradle2nix" type="builder">
+  Builder for Gradle projects with dependency locking.
+</ParamField>
+
+```nix
+gradle2nix.buildGradlePackage {
+  pname = "plugins";
+  version = "0.0.0";
+  src = /* ... */;
+  lockFile = ./gradle.lock;
+  gradleBuildFlags = [ "build" ];
+}
+```
+
+### JDK/JRE
+
+<ParamField path="jdk" type="derivation">
+  Temurin JDK 25 for building.
+</ParamField>
+
+<ParamField path="jre" type="derivation">
+  Temurin JRE 25 for running servers.
+</ParamField>
+
+```nix
+jdk = pkgs.javaPackages.compiler.temurin-bin.jdk-25;
+jre = pkgs.javaPackages.compiler.temurin-bin.jre-25;
+```
+
+## Plugin system
+
+### plugins-batch
+
+All plugins are built together in a single derivation:
+
+```nix
+plugins-batch = scopeSelf.gradle2nix.buildGradlePackage {
+  pname = "plugins";
+  version = "0.0.0";
+  src = /* filtered source */;
+  inherit (scopeSelf) gradle;
+  buildJdk = scopeSelf.jdk;
+  lockFile = ../gradle.lock;
+  gradleBuildFlags = [ "build" ];
+  
+  installPhase = ''
+    mkdir -p $out
+    cp plugins/*/build/libs/*.jar $out
+  '';
+};
+```
+
+### Individual plugins
+
+Each plugin is derived from the batch build:
+
+```nix
+plugins = lib.mapAttrs' (
+  name: _:
+  lib.nameValuePair (lib.toLower name) (
+    pkgs.runCommand name { } ''
+      mkdir -p $out
+      cp ${plugins-batch}/${name}.jar $out
+    ''
+  )
+) (builtins.readDir ../plugins);
+```
+
+Access plugins:
+```nix
+with oyasai-plugins; [
+  oyasaiutilities
+  oyasaiadmintools
+  vertex
+]
+```
+
+## Package creation
+
+### callPackage pattern
+
+```nix
+oyasaiPurpur = callPackage ./oyasai-purpur.nix { };
+```
+
+The called file receives scope arguments automatically:
+
+```nix
+# nix/oyasai-purpur.nix
+{
+  lib,
+  stdenv,
+  jre,
+  purpur-version,
+  ...
+}:
+
+{ name, version, plugins ? [], ... }:
+
+# Build logic
+```
+
+### packagesFromDirectoryRecursive
+
+Automatically import all packages from a directory:
+
+```nix
+lib.packagesFromDirectoryRecursive {
+  inherit callPackage;
+  directory = ../packages;
+}
+```
+
+This imports:
+- `packages/foo.nix` as `foo`
+- `packages/bar/default.nix` as `bar`
+
+## Flake outputs
+
+### packages
+
+Exposed packages:
+
+```nix
+packages = lib.filterAttrs (_: availableOnSystem) {
+  inherit (oyasaiScope)
+    oyasai-minecraft-main
+    oyasai-minecraft-marzipan
+    oyasai-minecraft-minimal
+    oyasai-plugin-registry
+    oyasai-push-nix-images
+    ;
+};
+```
+
+### legacyPackages
+
+All plugins are available:
+
+```nix
+legacyPackages.oyasai-plugins = oyasaiScope.plugins;
+```
+
+### checks
+
+All derivations become build checks:
+
+```nix
+checks = lib.concatMapAttrs (
+  k: v: lib.optionalAttrs (availableOnSystem v) {
+    "build-${k}" = v;
+  }
+) (lib.filterAttrs (_: lib.isDerivation) (
+  oyasaiScope // oyasaiScope.plugins
+));
+```
+
+Run checks:
+```bash
+nix flake check -L
+```
+
+## Development shells
+
+### devShells
+
+```nix
+devShells.default = pkgs.mkShell {
+  buildInputs = with oyasai-scope; [
+    gradle
+    gradle2nix-cli
+    jdk
+    nodejs
+    terraform
+  ];
+};
+```
+
+Enter the shell:
+```bash
+nix develop
+```
+
+## Cross-platform support
+
+### System filtering
+
+```nix
+availableOnSystem = lib.meta.availableOn { inherit system; };
+
+packages = lib.filterAttrs (_: availableOnSystem) { /* ... */ };
+```
+
+### Platform-specific features
+
+```nix
+passthru = lib.optionalAttrs stdenv.hostPlatform.isLinux {
+  docker = /* Docker image only on Linux */;
+};
+```
+
+## Overriding packages
+
+### override
+
+```nix
+myServer = oyasai-minecraft-minimal.override {
+  plugins = [ /* custom plugin list */ ];
+};
+```
+
+### overrideAttrs
+
+```nix
+myServer = oyasai-minecraft-minimal.overrideAttrs (old: {
+  extraJavaArgs = old.extraJavaArgs ++ [ "-Xdebug" ];
+});
+```
+
+## Best practices
+
+<CardGroup cols={2}>
+  <Card title="Use callPackage" icon="puzzle-piece">
+    Automatically inject dependencies from the scope.
+  </Card>
+  
+  <Card title="Filter sources" icon="filter">
+    Only include necessary files in derivations.
+  </Card>
+  
+  <Card title="Lock dependencies" icon="lock">
+    Use gradle.lock and flake.lock for reproducibility.
+  </Card>
+  
+  <Card title="Test with checks" icon="circle-check">
+    Include all packages in flake checks.
+  </Card>
+</CardGroup>
+
+## See also
+
+- [Architecture: Nix Flakes](/architecture/nix-flakes)
+- [Development: Nix Packages](/development/nix-packages)
+- [Server Configurations API](/api/server-configs)

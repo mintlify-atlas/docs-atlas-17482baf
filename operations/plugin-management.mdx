@@ -1,0 +1,342 @@
+---
+title: 'Plugin Management'
+description: 'Add, update, and manage Minecraft plugins through the centralized registry'
+---
+
+## Overview
+
+Oyasai Server Platform uses a centralized plugin registry that supports multiple plugin sources including Modrinth, Spiget, GitHub releases, local builds, and direct URLs.
+
+## Plugin Registry
+
+The plugin registry is defined in `@oyasaiserver/plugin-registry` and provides type-safe plugin definitions:
+
+```typescript packages/oyasai-plugin-registry/src/index.ts
+export type PluginDefinition = Readonly<
+  | { type: "modrinth"; slug: string }
+  | { type: "spiget"; id: number }
+  | { type: "github"; owner: string; repo: string; tag: string; name: string }
+  | { type: "local"; path: PathLike }
+  | { type: "url"; url: string }
+>;
+```
+
+## Plugin Sources
+
+### Modrinth Plugins
+
+Most modern plugins are sourced from Modrinth:
+
+```typescript
+export const registry = {
+  essentialsx: { type: "modrinth", slug: "essentialsx" },
+  fastasyncworldedit: { type: "modrinth", slug: "fastasyncworldedit" },
+  luckperms: { type: "modrinth", slug: "luckperms" },
+  plugmanx: { type: "modrinth", slug: "plugmanx" },
+  viaversion: { type: "modrinth", slug: "viaversion" },
+  worldguard: { type: "modrinth", slug: "worldguard" },
+  bluemap: { type: "modrinth", slug: "bluemap" },
+  decentholograms: { type: "modrinth", slug: "decentholograms" },
+};
+```
+
+<Note>
+  Modrinth automatically selects the correct version based on your server version.
+</Note>
+
+### Spiget Plugins
+
+Plugins from SpigotMC resources use numeric IDs:
+
+```typescript
+export const registry = {
+  protocollib: { type: "spiget", id: 1997 },
+  vault: { type: "spiget", id: 34315 },
+  nuvotifier: { type: "spiget", id: 13449 },
+  gsit: { type: "spiget", id: 62325 },
+  lwc: { type: "spiget", id: 69551 },
+  skript: { type: "spiget", id: 114544 },
+};
+```
+
+### GitHub Release Plugins
+
+Plugins distributed via GitHub releases:
+
+```typescript
+export const registry = {
+  openinv: {
+    type: "github",
+    owner: "JiKoo",
+    repo: "OpenInv",
+    tag: "5.1.14",
+    name: "OpenInv.jar",
+  },
+  worldborder: {
+    type: "github",
+    owner: "PryPurity",
+    repo: "WorldBorder",
+    tag: "v2.1.5",
+    name: "WorldBorder.jar",
+  },
+  imageonmap: {
+    type: "github",
+    owner: "okocraft",
+    repo: "ImageOnMap",
+    tag: "5.1.1",
+    name: "ImageOnMap-5.1.1.jar",
+  },
+};
+```
+
+### Local Development Plugins
+
+Custom plugins built locally from Gradle:
+
+```typescript
+function toGradleBuildPath(name: string) {
+  return format({
+    dir: join(path.plugins, name, "build/libs"),
+    name,
+    ext: ".jar",
+  });
+}
+
+export const registry = {
+  vertex: {
+    type: "local",
+    path: toGradleBuildPath("Vertex"),
+  },
+  oyasaiutilities: {
+    type: "local",
+    path: toGradleBuildPath("OyasaiUtilities"),
+  },
+  oyasaiadmintools: {
+    type: "local",
+    path: toGradleBuildPath("OyasaiAdminTools"),
+  },
+  oyasaipets: {
+    type: "local",
+    path: toGradleBuildPath("OyasaiPets"),
+  },
+};
+```
+
+### Direct URL Plugins
+
+Plugins downloaded from specific URLs:
+
+```typescript
+export const registry = {
+  geyser: {
+    type: "url",
+    url: "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot",
+  },
+  floodgate: {
+    type: "url",
+    url: "https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot",
+  },
+  chestcommands: {
+    type: "url",
+    url: "https://repo.codemc.io/repository/maven-public/me/filoghost/chestcommands/chestcommands-plugin/4.0.5/chestcommands-plugin-4.0.5.jar",
+  },
+};
+```
+
+## Available Plugins
+
+The registry currently includes these plugins:
+
+<AccordionGroup>
+  <Accordion title="Core Plugins" icon="gear">
+    - **EssentialsX**: Essential server commands and features
+    - **Vault**: Economy and permissions API
+    - **ProtocolLib**: Protocol manipulation library
+    - **LuckPerms**: Advanced permissions management
+    - **PlugManX**: Plugin manager with hot reload
+  </Accordion>
+  
+  <Accordion title="World Editing" icon="globe">
+    - **FastAsyncWorldEdit**: High-performance world editing
+    - **FastAsyncVoxelSniper**: Terrain sculpting tool
+    - **WorldGuard**: Region protection and flags
+  </Accordion>
+  
+  <Accordion title="World Management" icon="map">
+    - **Multiverse-Core**: Multiple world management
+    - **Multiverse-Portals**: Custom portal creation
+    - **Terra**: Advanced terrain generation
+    - **WorldBorder**: World boundaries
+  </Accordion>
+  
+  <Accordion title="Player Features" icon="user">
+    - **ViaVersion**: Multi-version protocol support
+    - **Geyser**: Bedrock Edition support
+    - **Floodgate**: Bedrock authentication
+    - **SkinsRestorer**: Custom skins support
+  </Accordion>
+  
+  <Accordion title="Custom Oyasai Plugins" icon="puzzle-piece">
+    - **Vertex**: Core Oyasai functionality
+    - **OyasaiUtilities**: Server utilities
+    - **OyasaiAdminTools**: Administration tools
+    - **OyasaiPets**: Custom pet system
+    - **DynamicProfile**: Player profile system
+  </Accordion>
+</AccordionGroup>
+
+## Adding Plugins to Server
+
+To add plugins to a server instance, update the server's Nix configuration:
+
+```nix packages/oyasai-minecraft-main.nix
+plugins = with (oyasai-plugin-registry.forVersion version); [
+  # Core plugins
+  essentialsx
+  vault
+  protocollib
+  
+  # Permissions
+  luckperms
+  
+  # World editing
+  fastasyncworldedit
+  worldguard
+  
+  # Custom plugins
+  vertex
+  oyasaiutilities
+];
+```
+
+<Steps>
+  <Step title="Add plugin to registry">
+    If the plugin isn't in the registry, add it to `packages/oyasai-plugin-registry/src/index.ts`
+  </Step>
+  
+  <Step title="Update server configuration">
+    Add the plugin identifier to the `plugins` array in your server's `.nix` file
+  </Step>
+  
+  <Step title="Rebuild server image">
+    Rebuild the Docker image to include the new plugin:
+    ```bash
+    nix build .#oyasai-minecraft-main
+    ```
+  </Step>
+  
+  <Step title="Deploy update">
+    Deploy the updated configuration to your environment
+  </Step>
+</Steps>
+
+## Plugin Configuration
+
+Plugin configurations are stored in the server's data directory:
+
+<CodeGroup>
+```yaml plugins/DynamicProfile/config.yml
+# Experience points per action
+Move: 20        # Per block moved
+Vehicle: 20     # Per block in vehicle
+Fly: 10         # Per block flown
+Jump: 40        # Per jump
+Block: 20       # Per block placed
+Vote: 30000     # Per vote
+Like: 4000      # Per like given
+ReceiveLike: 6000  # Per like received
+Join: 10000     # Per daily login
+Chat: 300       # Per chat message
+PlayTime: 300   # Per minute played
+
+# Level configuration
+basicRequired: 1000
+noticeLvs: []
+
+# Reward chest location
+RewardChestXYZ: [0.0, 0.0, 0.0]
+RewardChestWorld: "world"
+
+# Broadcast settings
+RecommendBroadcastIntervalSeconds: 600
+RecommendBroadcastMode: 0
+specialFrameInterval: 3
+```
+
+```yaml plugins/OyasaiAdminTools/config.yml
+webhook-url: ""
+```
+</CodeGroup>
+
+<Warning>
+  Plugin configurations are persisted in the server's data volume and survive container restarts.
+</Warning>
+
+## Plugin Build System
+
+The Nix build system automatically handles plugin downloads and packaging:
+
+```nix nix/oyasai-purpur.nix
+setup = writeShellApplication {
+  name = "${name}-setup";
+  runtimeInputs = [ coreutils ];
+  text = ''
+    echo "eula=true" > eula.txt
+    mkdir -p plugins
+    ${if cleanPlugins then ''
+      rm -rf plugins/.paper-remapped
+      rm -f plugins/*.jar
+    '' else ""}
+    ${lib.concatMapStringsSep "\n" (k: "cp --no-preserve=ownership,mode ${k} plugins") plugins}
+  '';
+};
+```
+
+This ensures:
+- Clean plugin directory on startup (if `cleanPlugins` is enabled)
+- Automatic plugin JAR copying
+- Proper file permissions
+
+## Download Helper
+
+The plugin registry includes a download helper script for manual plugin management:
+
+```json packages/oyasai-plugin-registry/package.json
+{
+  "bin": {
+    "plugin-registry-download-helper": "scripts/download-helper.ts"
+  }
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Version Compatibility" icon="check-circle">
+    Always verify plugin compatibility with your Minecraft version before adding
+  </Card>
+  
+  <Card title="Clean Deployments" icon="broom">
+    Use `cleanPlugins: true` to ensure fresh plugin state on deployment
+  </Card>
+  
+  <Card title="Local Testing" icon="flask">
+    Test custom plugins locally before deploying to production
+  </Card>
+  
+  <Card title="Registry Organization" icon="folder-tree">
+    Group related plugins together in the registry for easier management
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Server Configuration" icon="gear" href="/operations/server-configuration">
+    Learn how to configure server instances
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line" href="/operations/monitoring">
+    Set up monitoring for plugin health
+  </Card>
+</CardGroup>

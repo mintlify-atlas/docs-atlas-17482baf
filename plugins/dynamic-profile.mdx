@@ -1,0 +1,62 @@
+---
+title: DynamicProfile
+description: Player profile and recommendation system
+---
+
+DynamicProfile provides a dynamic player profile system with leaderboards and recommendations.
+
+## Overview
+
+- **API Version**: 1.21
+- **Dependencies**: Purpur API
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Player profiles" icon="id-card">
+    Dynamic player profiles with statistics
+  </Card>
+  <Card title="Leaderboards" icon="trophy">
+    Competitive ranking system
+  </Card>
+  <Card title="Recommendations" icon="star">
+    Player recommendation broadcasts
+  </Card>
+  <Card title="PlaceholderAPI" icon="puzzle-piece">
+    Integration with PlaceholderAPI
+  </Card>
+</CardGroup>
+
+## Commands
+
+<AccordionGroup>
+  <Accordion title="/dprofile - Manage profiles">
+    Main command for profile management.
+  </Accordion>
+  
+  <Accordion title="/leaderboard - View rankings">
+    Display player leaderboards.
+  </Accordion>
+  
+  <Accordion title="/recommend - Recommend players">
+    Recommend other players for recognition.
+  </Accordion>
+</AccordionGroup>
+
+## Architecture
+
+The plugin includes several key components:
+
+- **RecommendMode**: Manages different recommendation modes
+- **RecommendBroadcaster**: Broadcasts player recommendations
+- **PromotionHistory**: Tracks player promotion events
+- **PlaceHolderExpansion**: Provides placeholders for other plugins
+
+## Source code
+
+The plugin source is located at `plugins/DynamicProfile/` in the repository.
+
+Key files:
+- `src/main/kotlin/com/baakun/dynamicprofile/DynamicProfile.kt`
+- `src/main/kotlin/com/baakun/dynamicprofile/command/`
+- `src/main/kotlin/com/baakun/dynamicprofile/data/`

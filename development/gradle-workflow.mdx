@@ -1,0 +1,357 @@
+---
+title: Gradle Workflow
+description: Understanding the Gradle build system and workflow for Oyasai Server Platform
+---
+
+## Overview
+
+Oyasai Server Platform uses Gradle 9 with Kotlin DSL for building all plugins. The build system is integrated with Nix for reproducible builds and dependency management.
+
+## Gradle Configuration
+
+### Build System Components
+
+- **Gradle Version**: 9 (provided via Nix)
+- **JDK**: Temurin 25
+- **Build Language**: Kotlin DSL (.gradle.kts files)
+- **Plugins**: Kotlin JVM, Shadow (fat JAR creation)
+
+### Project Structure
+
+```
+platform/
+├── build.gradle.kts         # Root build configuration
+├── settings.gradle.kts      # Multi-project setup
+├── gradle.lock             # Nix dependency lockfile
+├── gradle/                 # Gradle wrapper files
+└── plugins/                # All plugin subprojects
+    ├── OyasaiUtilities/
+    │   └── build.gradle.kts
+    └── DynamicProfile/
+        └── build.gradle.kts
+```
+
+## Root Build Configuration
+
+The root `build.gradle.kts` configures all plugin subprojects automatically.
+
+### Buildscript Dependencies
+
+```kotlin
+buildscript {
+  dependencies {
+    classpath(libs.kotlin.plugin)
+    classpath(libs.shadow.plugin)
+  }
+  repositories { mavenCentral() }
+}
+```
+
+See `build.gradle.kts:3-10`.
+
+### Repository Configuration
+
+All projects have access to these repositories:
+
+```kotlin
+allprojects {
+  repositories {
+    mavenCentral()
+    maven("https://repo.purpurmc.org/snapshots")
+    maven("https://nexus.frengor.com/repository/public/")
+    maven("https://nexus.scarsz.me/content/groups/public/")
+  }
+}
+```
+
+See `build.gradle.kts:12-19`.
+
+### Subproject Configuration
+
+Every plugin under `:plugins:*` automatically receives:
+
+1. **Applied Plugins**:
+   - `org.jetbrains.kotlin.jvm`
+   - `com.gradleup.shadow`
+   - `java-library`
+
+2. **JAR Configuration**:
+   - Default JAR task is disabled
+   - Shadow JAR is used for all builds
+   - No classifier (clean filenames)
+   - Duplicate strategy: EXCLUDE
+
+3. **Resource Processing**:
+   - Version property expansion in `plugin.yml`
+   - UTF-8 charset for filtering
+
+4. **Build Task**:
+   - Depends on `shadowJar` task
+
+See `build.gradle.kts:21-53`.
+
+## Common Gradle Tasks
+
+### Build Tasks
+
+<CodeGroup>
+```bash Build all plugins
+gradle build --parallel
+```
+
+```bash Build specific plugin
+gradle :plugins:OyasaiUtilities:build
+```
+
+```bash Clean build
+gradle clean build
+```
+
+```bash Build without tests
+gradle build -x test
+```
+</CodeGroup>
+
+### Shadow JAR Tasks
+
+<CodeGroup>
+```bash Create fat JAR for all plugins
+gradle shadowJar --parallel
+```
+
+```bash Create fat JAR for specific plugin
+gradle :plugins:OyasaiUtilities:shadowJar
+```
+</CodeGroup>
+
+### Dependency Tasks
+
+<CodeGroup>
+```bash List dependencies
+gradle :plugins:OyasaiUtilities:dependencies
+```
+
+```bash Show dependency tree
+gradle :plugins:OyasaiUtilities:dependencies --configuration compileClasspath
+```
+
+```bash Show dependency insight
+gradle :plugins:OyasaiUtilities:dependencyInsight --dependency purpur-api
+```
+</CodeGroup>
+
+### Project Information
+
+<CodeGroup>
+```bash List all projects
+gradle projects
+```
+
+```bash List tasks for a plugin
+gradle :plugins:OyasaiUtilities:tasks
+```
+
+```bash Show project properties
+gradle :plugins:OyasaiUtilities:properties
+```
+</CodeGroup>
+
+## Plugin Build Files
+
+### Minimal build.gradle.kts
+
+Most plugins only need to declare dependencies:
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+}
+```
+
+Example from `plugins/OyasaiUtilities/build.gradle.kts:1-5`.
+
+### With Multiple Dependencies
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+  compileOnly(libs.vault.api)
+  implementation("com.google.code.gson:gson:2.10.1")
+}
+```
+
+### With Kotlin Standard Library
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+  implementation(kotlin("stdlib"))
+}
+```
+
+## Nix Integration
+
+### gradle2nix
+
+Oyasai Platform uses `gradle2nix` for reproducible Nix builds. When you add or update dependencies, you must regenerate the lockfile.
+
+#### Update Lockfile
+
+```bash
+gradle2nix
+```
+
+This command:
+1. Resolves all Gradle dependencies
+2. Generates `gradle.lock` for Nix
+3. Ensures reproducible builds
+
+<Warning>
+Always run `gradle2nix` after modifying dependencies in any `build.gradle.kts` file. The CI will fail if the lockfile is out of sync.
+</Warning>
+
+### Nix Build Process
+
+The Nix build system builds all plugins in a single batch:
+
+```nix
+plugins-batch = scopeSelf.gradle2nix.buildGradlePackage {
+  pname = "plugins";
+  version = "0.0.0";
+  src = # ... filtered source files
+  gradle = scopeSelf.gradle;
+  buildJdk = scopeSelf.jdk;
+  lockFile = ../gradle.lock;
+  gradleBuildFlags = [ "build" ];
+  installPhase = '''
+    mkdir -p $out
+    cp plugins/*/build/libs/*.jar $out
+  ''';
+};
+```
+
+See `nix/oyasai-scope.nix:50-76`.
+
+### Individual Plugin Derivations
+
+Each plugin gets a thin derivation that copies from the batch build:
+
+```nix
+plugins = lib.mapAttrs' (
+  name: _:
+  lib.nameValuePair (lib.toLower name) (
+    pkgs.runCommand name { } '''
+      mkdir -p $out
+      cp ${plugins-batch}/${name}.jar $out
+    '''
+  )
+) (builtins.readDir ../plugins);
+```
+
+See `nix/oyasai-scope.nix:106-114`.
+
+## Version Management
+
+### Setting Version
+
+The version is set at the project level and automatically expanded in `plugin.yml`:
+
+```yaml
+name: MyPlugin
+version: ${version}
+main: com.oyasai.myplugin.MyPlugin
+```
+
+The `${version}` placeholder is replaced during the `processResources` task (see `build.gradle.kts:44-49`).
+
+### Version in Nix
+
+When creating server packages, you can reference plugins by version:
+
+```nix
+plugins = with (oyasai-plugin-registry.forVersion version); [
+  essentialsx
+  fastasyncworldedit
+];
+```
+
+## Build Performance
+
+### Parallel Builds
+
+Always use `--parallel` for multi-plugin builds:
+
+```bash
+gradle build --parallel
+```
+
+### Gradle Daemon
+
+The Gradle daemon speeds up subsequent builds. It's enabled by default in Nix devshell.
+
+### Build Cache
+
+Gradle's build cache is automatically configured. Incremental builds reuse unchanged outputs.
+
+### CI Builds
+
+The CI runs:
+
+```bash
+nix flake check -L
+```
+
+This builds all packages and runs tests. See `CONTRIBUTING.md:46-50`.
+
+## Troubleshooting
+
+### Clean Build
+
+If you encounter build issues:
+
+```bash
+gradle clean build
+```
+
+### Refresh Dependencies
+
+Force Gradle to re-download dependencies:
+
+```bash
+gradle build --refresh-dependencies
+```
+
+### Check Lockfile Sync
+
+If Nix builds fail but Gradle builds succeed:
+
+```bash
+gradle2nix
+git diff gradle.lock
+```
+
+### Gradle Wrapper Issues
+
+In the Nix devshell, use the provided Gradle:
+
+```bash
+which gradle  # Should point to Nix store
+gradle --version
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin Development" icon="puzzle-piece" href="/development/plugin-development">
+    Learn how to create and build plugins
+  </Card>
+  <Card title="Nix Packages" icon="box" href="/development/nix-packages">
+    Create server configurations with Nix
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Test your plugins locally
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Submit your changes for review
+  </Card>
+</CardGroup>

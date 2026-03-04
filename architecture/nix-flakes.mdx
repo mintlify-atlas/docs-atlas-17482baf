@@ -1,0 +1,590 @@
+---
+title: Nix Flakes System
+description: Deep dive into the Nix flake architecture powering reproducible builds
+---
+
+The Oyasai Server Platform leverages Nix flakes for reproducible, declarative builds and deployment. This document explains the flake architecture, custom scope, and build system integration.
+
+## Flake Overview
+
+Nix flakes provide:
+- **Reproducibility**: Locked dependencies ensure identical builds
+- **Composability**: Modular imports and clean interfaces
+- **Developer Experience**: Built-in dev shells and formatters
+
+## Flake Structure
+
+The root `flake.nix` defines inputs and outputs:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    devshell = {
+      url = "github:numtide/devshell";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    gradle2nix = {
+      url = "github:oyasaiserver/gradle2nix?ref=v2";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    package-lock2nix = {
+      url = "github:anteriorcore/package-lock2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+      inputs.systems.follows = "systems";
+    };
+    systems.url = "github:nix-systems/default";
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+}
+```
+
+### Input Following
+
+Notice the `inputs.nixpkgs.follows = "nixpkgs"` pattern. This ensures all dependencies use the same nixpkgs version, preventing duplication and version conflicts.
+
+<Tip>
+  Input following reduces closure size and ensures consistent package versions across all dependencies.
+</Tip>
+
+## Flake-Parts Architecture
+
+The flake uses `flake-parts` for modular organization:
+
+```nix
+flake-parts.lib.mkFlake { inherit inputs; } {
+  systems = import systems;
+  imports = [
+    ./nix/devshells.nix
+    ./nix/docker.nix
+    ./nix/oyasai-scope.nix
+    ./nix/treefmt.nix
+    devshell.flakeModule
+    flakeAllSystems
+    treefmt-nix.flakeModule
+  ];
+};
+```
+
+Each import provides a specific aspect of functionality:
+
+<CardGroup cols={2}>
+  <Card title="oyasai-scope.nix" icon="cube">
+    Custom package scope with build logic and package definitions
+  </Card>
+  <Card title="devshells.nix" icon="terminal">
+    Development environment configuration with tools
+  </Card>
+  <Card title="docker.nix" icon="docker">
+    Docker image generation and registry management
+  </Card>
+  <Card title="treefmt.nix" icon="code">
+    Code formatting rules for Nix, Kotlin, and other files
+  </Card>
+</CardGroup>
+
+## Oyasai Scope
+
+The core of the build system is the custom package scope defined in `nix/oyasai-scope.nix`:
+
+```nix
+oyasaiScope = lib.makeScope pkgs.newScope (
+  scopeSelf:
+  let
+    inherit (scopeSelf) callPackage;
+  in
+  {
+    # Java toolchain
+    jdk = pkgs.javaPackages.compiler.temurin-bin.jdk-25;
+    jre = pkgs.javaPackages.compiler.temurin-bin.jre-25;
+    gradle = pkgs.gradle_9.override { java = scopeSelf.jdk; };
+    
+    # Build tools
+    gradle2nix = inputs.gradle2nix.builders.${system};
+    package-lock2nix = callPackage inputs.package-lock2nix.lib.package-lock2nix {
+      inherit (scopeSelf) nodejs;
+    };
+    
+    # Custom packages
+    oyasaiPurpur = callPackage ./oyasai-purpur.nix { };
+    oyasaiDockerTools = callPackage ./oyasai-docker-tools.nix { };
+    
+    # Plugin builds
+    inherit plugins-batch;
+    plugins = /* ... */;
+  }
+  // lib.packagesFromDirectoryRecursive {
+    inherit callPackage;
+    directory = ../packages;
+  }
+);
+```
+
+### Scope Benefits
+
+<AccordionGroup>
+  <Accordion title="Isolated Namespace">
+    The scope creates a separate namespace preventing conflicts with nixpkgs packages.
+  </Accordion>
+  
+  <Accordion title="Dependency Injection">
+    `callPackage` automatically provides dependencies to package definitions.
+  </Accordion>
+  
+  <Accordion title="Lazy Evaluation">
+    Packages only built when referenced, improving evaluation performance.
+  </Accordion>
+  
+  <Accordion title="Composability">
+    Packages can reference each other within the scope transparently.
+  </Accordion>
+</AccordionGroup>
+
+## gradle2nix Integration
+
+Gradle builds are integrated via the `gradle2nix` tool:
+
+### Dependency Locking
+
+```bash
+# Generate gradle.lock from build.gradle.kts
+nix develop
+gradle2nix > gradle.lock
+```
+
+The lock file captures:
+- All Maven dependencies
+- Transitive dependencies
+- SHA256 hashes for verification
+
+### Plugin Build
+
+Plugins are built in batch mode:
+
+```nix
+plugins-batch = scopeSelf.gradle2nix.buildGradlePackage {
+  pname = "plugins";
+  version = "0.0.0";
+  src = with lib.fileset; toSource {
+    root = ../.; 
+    fileset = unions [
+      ../build.gradle.kts
+      ../gradle
+      ../plugins
+      ../settings.gradle.kts
+    ];
+  };
+  inherit (scopeSelf) gradle;
+  buildJdk = scopeSelf.jdk;
+  lockFile = ../gradle.lock;
+  gradleBuildFlags = [ "build" ];
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out
+    cp plugins/*/build/libs/*.jar $out
+    runHook postInstall
+  '';
+};
+```
+
+<Steps>
+  <Step title="Source Filtering">
+    Only include necessary files in the build using `lib.fileset`
+  </Step>
+  
+  <Step title="Hermetic Build">
+    All dependencies fetched from lock file, no network access during build
+  </Step>
+  
+  <Step title="Batch Compilation">
+    All plugins built together for efficiency
+  </Step>
+  
+  <Step title="JAR Extraction">
+    Install phase copies all built JARs to output
+  </Step>
+</Steps>
+
+### Individual Plugin Derivations
+
+Each plugin is exposed as a separate derivation:
+
+```nix
+plugins = lib.mapAttrs' (
+  name: _:
+  lib.nameValuePair (lib.toLower name) (
+    pkgs.runCommand name { } ''
+      mkdir -p $out
+      cp ${plugins-batch}/${name}.jar $out
+    ''
+  )
+) (builtins.readDir ../plugins);
+```
+
+This creates lightweight derivations that reference the batch build:
+
+```bash
+nix build .#legacyPackages.x86_64-linux.oyasai-plugins.oyasaiutilities
+```
+
+## Server Package Assembly
+
+Server packages use the `oyasaiPurpur` function:
+
+```nix
+# packages/oyasai-minecraft-main.nix
+{
+  oyasaiPurpur,
+  oyasai-plugin-registry,
+  lib,
+  oyasaiDockerTools,
+  stdenv,
+}:
+
+let
+  final = oyasaiPurpur rec {
+    name = "oyasai-minecraft-main";
+    version = "1.21.8";
+    
+    plugins = with (oyasai-plugin-registry.forVersion version); [
+      essentialsx
+      fastasyncworldedit
+      luckperms
+      plugmanx
+      protocollib
+      vault
+      nuvotifier
+      vertex
+    ];
+    
+    passthru = lib.optionalAttrs stdenv.hostPlatform.isLinux {
+      docker = oyasaiDockerTools.buildLayeredImage {
+        inherit name;
+        config.Cmd = [ "${lib.getExe final}" ];
+      };
+    };
+  };
+in
+final
+```
+
+### oyasaiPurpur Builder
+
+The builder function (`nix/oyasai-purpur.nix`) creates a complete server package:
+
+```nix
+{
+  name,
+  version,
+  plugins,
+  directory ? ".",
+  port ? 25565,
+  passthru ? { },
+  cleanPlugins ? true,
+}:
+
+let
+  versions = {
+    "1.21.8" = {
+      build = 2497;
+      hash = "sha256-3XsifyVVYBw5zsCR32eCdfCoH6ftaM6VTsSSS7RXXEY=";
+    };
+  };
+  setup = writeShellApplication {
+    name = "${name}-setup";
+    runtimeInputs = [ coreutils ];
+    text = ''
+      echo "eula=true" > eula.txt
+      mkdir -p plugins
+      ${if cleanPlugins then ''
+        rm -rf plugins/.paper-remapped
+        rm -f plugins/*.jar
+      '' else ""}
+      ${lib.concatMapStringsSep "\n" (k: "cp --no-preserve=ownership,mode ${k} plugins") plugins}
+    '';
+  };
+in
+stdenvNoCC.mkDerivation {
+  # Fetches Purpur server JAR
+  src = fetchurl {
+    url = "https://api.purpurmc.org/v2/purpur/${version}/${toString build}/download";
+    inherit hash;
+  };
+  
+  installPhase = ''
+    mkdir -p $out/bin $out/lib/minecraft
+    cp -v $src $out/lib/minecraft/server.jar
+    
+    makeWrapper ${jre}/bin/java $out/bin/minecraft-server \
+      --run "mkdir -p ${directory}" \
+      --chdir ${directory} \
+      --run "${lib.getExe setup}" \
+      --add-flags "-jar $out/lib/minecraft/server.jar --nogui --port ${toString port}"
+  '';
+}
+```
+
+<Note>
+  The setup script runs before server start, accepting the EULA and copying plugins into the plugins directory.
+</Note>
+
+## Docker Image Generation
+
+Docker images use layered builds for efficient caching:
+
+```nix
+# From docker.nix
+all-docker-image-derivs =
+  lib.flatten (
+    lib.mapAttrsToList (
+      name: value:
+      lib.optionals (value ? docker) {
+        inherit name;
+        image = value.docker;
+      }
+    ) oyasaiScope
+  ) ++ lib.mapAttrsToList (name: image: { inherit name image; }) standalone-docker-images;
+```
+
+This creates:
+- Individual image derivations for each package
+- An aggregate `all-docker-images` package
+- A derivations file mapping image names to store paths
+
+### Building Docker Images
+
+```bash
+# Build single image
+nix build .#oyasai-minecraft-main-docker
+
+# Build all images
+nix build .#all-docker-images
+
+# Load image into Docker
+docker load < result
+```
+
+## Development Shells
+
+The dev shell provides all necessary tools:
+
+```nix
+# nix/devshells.nix
+devshells.default = {
+  packages = with oyasaiScope; [
+    nodejs        # Node.js 24
+    jdk           # Temurin JDK 25
+    terraform     # Infrastructure as code
+    gradle        # Gradle 9
+    gradle2nix-cli # Dependency locking
+  ];
+};
+```
+
+Enter the shell:
+
+```bash
+nix develop
+
+# Or with direnv
+echo "use flake" > .envrc
+direnv allow
+```
+
+## Package Lock2nix Integration
+
+For Node.js packages, `package-lock2nix` provides similar functionality to gradle2nix:
+
+```nix
+package-lock2nix = callPackage inputs.package-lock2nix.lib.package-lock2nix {
+  inherit (scopeSelf) nodejs;
+  overrideScope = overlays.package-lock2nix;
+};
+```
+
+The overlay handles TypeScript configuration:
+
+```nix
+overlays.package-lock2nix = final: prev: {
+  mkNpmModule = args:
+    let orig = prev.mkNpmModule args; in
+    orig.overrideAttrs (self:
+      lib.optionalAttrs (builtins.pathExists (self.src + "/tsconfig.json")) {
+        nativeBuildInputs = self.nativeBuildInputs or [ ] ++ [
+          pkgs.jq
+          pkgs.moreutils
+        ];
+        prePatch = orig.prePatch or "" + ''
+          jq --arg tsconfig ${../tsconfig.json} '
+            if has("extends")
+            then .extends = $tsconfig
+            else .
+            end
+          ' tsconfig.json | sponge tsconfig.json
+        '';
+      }
+    );
+};
+```
+
+## Flake Outputs
+
+The flake exposes multiple output types:
+
+<Tabs>
+  <Tab title="Packages">
+    ```bash
+    nix build .#oyasai-minecraft-main
+    nix build .#oyasai-minecraft-minimal
+    nix build .#oyasai-plugin-registry
+    nix build .#oyasai-push-nix-images
+    ```
+  </Tab>
+  
+  <Tab title="Legacy Packages">
+    ```bash
+    # Individual plugins
+    nix build .#legacyPackages.x86_64-linux.oyasai-plugins.oyasaiutilities
+    nix build .#legacyPackages.x86_64-linux.oyasai-plugins.oyasaipets
+    ```
+  </Tab>
+  
+  <Tab title="Dev Shells">
+    ```bash
+    nix develop
+    nix develop .#default
+    ```
+  </Tab>
+  
+  <Tab title="Checks">
+    ```bash
+    # Build all packages as checks
+    nix flake check
+    ```
+  </Tab>
+  
+  <Tab title="Formatters">
+    ```bash
+    # Format all code
+    nix fmt
+    ```
+  </Tab>
+</Tabs>
+
+## Cross-System Support
+
+The flake supports multiple systems via the `systems` input:
+
+```nix
+systems = import systems; # Imports nix-systems/default
+
+flakeAllSystems = {
+  perSystem = { system, ... }: {
+    _module.args = {
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
+    };
+  };
+};
+```
+
+Supported systems:
+- `x86_64-linux`
+- `aarch64-linux`
+- `x86_64-darwin`
+- `aarch64-darwin`
+
+<Warning>
+  Docker images are only built on Linux systems. The configuration uses `lib.mkIf (builtins.elem system lib.platforms.linux)` to conditionally enable Docker outputs.
+</Warning>
+
+## Build Checks
+
+All packages and plugins are exposed as checks:
+
+```nix
+checks = lib.concatMapAttrs (
+  k: v: lib.optionalAttrs (availableOnSystem v) { "build-${k}" = v; }
+) (
+  lib.filterAttrs (_: lib.isDerivation) (oyasaiScope // oyasaiScope.plugins)
+);
+```
+
+Run checks:
+
+```bash
+nix flake check
+```
+
+## Working with the Flake
+
+<Steps>
+  <Step title="Clone Repository">
+    ```bash
+    git clone <repository-url>
+    cd oyasai-server-platform
+    ```
+  </Step>
+  
+  <Step title="Enter Dev Shell">
+    ```bash
+    nix develop
+    ```
+  </Step>
+  
+  <Step title="Update Dependencies">
+    ```bash
+    gradle2nix > gradle.lock
+    git add gradle.lock
+    ```
+  </Step>
+  
+  <Step title="Build Package">
+    ```bash
+    nix build .#oyasai-minecraft-main
+    ```
+  </Step>
+  
+  <Step title="Run Server">
+    ```bash
+    ./result/bin/minecraft-server
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Tip>
+  Always use `inputs.nixpkgs.follows` to ensure consistent package versions across all dependencies.
+</Tip>
+
+<Tip>
+  Use `lib.fileset` for source filtering instead of builtins.filterSource for better performance and readability.
+</Tip>
+
+<Warning>
+  Never commit `flake.lock` changes without testing builds across all affected systems.
+</Warning>
+
+<Note>
+  When adding new packages, use `callPackage` in the scope to enable automatic dependency injection.
+</Note>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Understand the overall system design
+  </Card>
+  <Card title="Plugin System" icon="puzzle-piece" href="/architecture/plugin-system">
+    Learn how plugins are built and packaged
+  </Card>
+</CardGroup>

@@ -1,0 +1,293 @@
+---
+title: Deployment
+description: Deploy and test plugins on local Purpur servers
+---
+
+The Oyasai Server Platform provides infrastructure to create and run local Purpur Minecraft servers for testing plugins.
+
+## Purpur Server
+
+Oyasai uses [Purpur](https://purpurmc.org), a highly customizable Minecraft server implementation based on Paper.
+
+### Why Purpur?
+
+- High performance with extensive optimization
+- Full compatibility with Paper and Spigot plugins
+- Additional gameplay features and configuration options
+- Active development and community support
+
+## Running a Test Server
+
+You can either manually set up a Purpur server or use the platform's built-in infrastructure.
+
+### Option 1: Platform-Managed Server (Recommended)
+
+The platform includes a minimal server configuration that you can use for testing.
+
+#### Run the Minimal Server
+
+```bash
+nix run .#oyasai-minecraft-minimal
+```
+
+This command:
+- Downloads Purpur 1.21.8
+- Configures the server with essential plugins
+- Creates a `local/` directory for server files
+- Starts the server
+
+<Note>
+  The first run will take time to download the server and plugins. The server files persist in the `local/` directory.
+</Note>
+
+#### Included Plugins
+
+The minimal server includes:
+- **EssentialsX** - Core server commands and features
+- **FastAsyncWorldEdit** - World editing tool
+- **PlugManX** - Plugin management
+
+### Option 2: Custom Server Configuration
+
+You can create your own server configuration to test specific plugins or settings.
+
+<Steps>
+  <Step title="Create a configuration file">
+    Create a new Nix file in `packages/` directory, for example `packages/my-test-server.nix`:
+    
+    ```nix
+    { oyasaiPurpur, oyasai-plugin-registry }:
+    
+    oyasaiPurpur rec {
+      name = "my-test-server";
+      version = "1.21.8";
+      
+      directory = "my-test";
+      
+      # Add plugins from the registry
+      plugins = with (oyasai-plugin-registry.forVersion version); [
+        essentialsx
+        fastasyncworldedit
+        plugmanx
+        # Add more plugins as needed
+      ];
+    }
+    ```
+  </Step>
+  
+  <Step title="Stage the configuration">
+    Add your configuration file to Git:
+    
+    ```bash
+    git add packages/my-test-server.nix
+    ```
+    
+    <Warning>
+      You must stage the file with `git add` before Nix can recognize it.
+    </Warning>
+  </Step>
+  
+  <Step title="Register in oyasai-scope.nix">
+    Open `nix/oyasai-scope.nix` and find the section where other servers are defined (search for `oyasai-minecraft-minimal`).
+    
+    Add an entry for your server:
+    
+    ```nix
+    my-test-server = callPackage ../packages/my-test-server.nix { };
+    ```
+  </Step>
+  
+  <Step title="Run your server">
+    ```bash
+    nix run .#my-test-server
+    ```
+  </Step>
+</Steps>
+
+### Server Configuration Details
+
+#### Server Version
+
+The `version` field specifies the Minecraft version:
+
+```nix
+version = "1.21.8";
+```
+
+Ensure this matches the version your plugins are built for.
+
+#### Server Directory
+
+The `directory` field specifies where server files are stored:
+
+```nix
+directory = "local";
+```
+
+This creates a `local/` directory in your project root containing:
+- World data
+- Server configuration files
+- Plugin data and configs
+- Logs
+
+<Note>
+  The directory is created automatically on first run. You can customize settings by editing files in this directory.
+</Note>
+
+## Testing Your Plugins
+
+To test plugins you've built:
+
+<Steps>
+  <Step title="Build your plugin">
+    ```bash
+    gradle :plugins:YourPlugin:build
+    ```
+  </Step>
+  
+  <Step title="Copy to server plugins folder">
+    ```bash
+    cp plugins/YourPlugin/build/libs/YourPlugin.jar local/plugins/
+    ```
+  </Step>
+  
+  <Step title="Restart or reload the server">
+    In the server console:
+    ```
+    reload confirm
+    ```
+    
+    Or restart the server:
+    ```
+    stop
+    ```
+    
+    Then run again:
+    ```bash
+    nix run .#oyasai-minecraft-minimal
+    ```
+  </Step>
+</Steps>
+
+## Server Management
+
+### Stopping the Server
+
+In the server console, type:
+
+```
+stop
+```
+
+### Server Console Commands
+
+Common commands for testing:
+
+- `reload confirm` - Reload all plugins
+- `plugins` - List loaded plugins
+- `help` - Show available commands
+- `op <player>` - Grant operator permissions
+- `gamemode creative <player>` - Set creative mode
+
+### Logs and Debugging
+
+Server logs are stored in:
+
+```
+local/logs/latest.log
+```
+
+Monitor logs for plugin errors or warnings:
+
+```bash
+tail -f local/logs/latest.log
+```
+
+## Docker Deployment
+
+The platform supports building Docker images for deployment.
+
+### Available Images
+
+Linux systems can build Docker images for:
+- Minecraft servers
+- MariaDB database
+- Backup services
+
+To see available Docker images:
+
+```bash
+nix flake show | grep docker
+```
+
+### Building Docker Images
+
+Build a specific Docker image:
+
+```bash
+nix build .#<package-name>-docker
+```
+
+For example:
+
+```bash
+nix build .#mariadb-docker
+```
+
+<Note>
+  Docker image building is only available on Linux systems due to platform-specific dependencies.
+</Note>
+
+## Production Deployment
+
+For production deployment:
+
+1. Use Nix flakes to ensure reproducible builds
+2. Build Docker images for containerized deployment
+3. Use infrastructure-as-code (Terraform) for cloud deployment
+4. Follow security best practices for production servers
+
+<Warning>
+  Never deploy test configurations to production. Create separate production configurations with appropriate security settings.
+</Warning>
+
+## Deployment Best Practices
+
+- **Version Control**: Always commit working configurations
+- **Incremental Testing**: Test plugins individually before combining
+- **Backup Worlds**: Keep backups of test world data
+- **Monitor Performance**: Watch for memory leaks or performance issues
+- **Review Logs**: Check logs after each test session
+
+## Troubleshooting
+
+### Server Won't Start
+
+Check:
+- Port 25565 is not already in use
+- Sufficient disk space in the server directory
+- Valid plugin configurations
+- Server logs for error messages
+
+### Plugin Not Loading
+
+Verify:
+- Plugin JAR is in `local/plugins/` directory
+- Plugin is compatible with server version
+- No conflicting plugins
+- Plugin dependencies are installed
+
+### Performance Issues
+
+Try:
+- Reduce view distance in `server.properties`
+- Allocate more memory to the JVM
+- Disable unnecessary plugins
+- Profile with `/timings` command
+
+## Next Steps
+
+- Review the [Contributing Guide](https://github.com/oyasaiserver/platform/blob/master/CONTRIBUTING.md)
+- Explore plugin source code in `plugins/` directory
+- Join the development community
+- Submit pull requests with your improvements

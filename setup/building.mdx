@@ -1,0 +1,209 @@
+---
+title: Building
+description: Build Minecraft plugins and verify your changes
+---
+
+The Oyasai Server Platform uses Gradle for building Minecraft plugins and Nix for packaging.
+
+## Building Plugins with Gradle
+
+All plugin builds must be performed from within the Nix development shell.
+
+### Enter Development Shell
+
+```bash
+nix develop
+```
+
+### Build All Plugins
+
+To build all plugins in the monorepo:
+
+```bash
+gradle build --parallel
+```
+
+The `--parallel` flag enables parallel execution, significantly speeding up build times when building multiple plugins.
+
+### Build a Specific Plugin
+
+To build a single plugin:
+
+```bash
+gradle :plugins:<plugin-name>:build
+```
+
+<CodeGroup>
+```bash OyasaiPets
+gradle :plugins:OyasaiPets:build
+```
+
+```bash OyasaiUtilities
+gradle :plugins:OyasaiUtilities:build
+```
+
+```bash OyasaiAdminTools
+gradle :plugins:OyasaiAdminTools:build
+```
+</CodeGroup>
+
+## Build Configuration
+
+### Shadow JAR
+
+All plugins use the Shadow Gradle plugin to create fat JARs with all dependencies bundled.
+
+Key configuration from `build.gradle.kts`:
+
+```kotlin
+tasks.withType<ShadowJar>().configureEach {
+  archiveBaseName = project.name
+  archiveClassifier = ""
+  duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+```
+
+The `shadowJar` task is automatically executed during `gradle build`.
+
+### Plugin Metadata
+
+Plugin versions are automatically injected into `plugin.yml` during the build process:
+
+```kotlin
+tasks.withType<ProcessResources>().configureEach {
+  val version: String by project
+  val properties = mapOf("version" to version)
+  inputs.properties(properties)
+  filteringCharset = Charsets.UTF_8.name()
+  filesMatching("plugin.yml") { expand(properties) }
+}
+```
+
+This ensures your `plugin.yml` always has the correct version number.
+
+## Build Outputs
+
+Built plugin JARs are located in each plugin's build directory:
+
+```
+plugins/<plugin-name>/build/libs/<plugin-name>.jar
+```
+
+For example:
+- `plugins/OyasaiPets/build/libs/OyasaiPets.jar`
+- `plugins/OyasaiUtilities/build/libs/OyasaiUtilities.jar`
+
+## Testing with Nix
+
+The platform includes comprehensive testing via Nix flakes:
+
+```bash
+nix flake check -L
+```
+
+This command:
+- Builds all packages
+- Runs all tests (if any exist)
+- Validates Nix expressions
+- Shows verbose output (`-L` flag)
+
+<Note>
+  CI runs `nix flake check` on every pull request. Ensure this passes locally before pushing.
+</Note>
+
+## Dependency Updates
+
+When you add or modify Gradle dependencies:
+
+<Steps>
+  <Step title="Update build.gradle.kts">
+    Add or modify dependencies in your plugin's `build.gradle.kts` file.
+  </Step>
+  
+  <Step title="Regenerate gradle.lock">
+    Run `gradle2nix` to update the Nix lockfile:
+    
+    ```bash
+    gradle2nix
+    ```
+  </Step>
+  
+  <Step title="Commit both changes">
+    Commit both the `build.gradle.kts` changes and the updated `gradle.lock`:
+    
+    ```bash
+    git add build.gradle.kts gradle.lock
+    git commit -m "feat: add new dependency"
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Failing to run `gradle2nix` after dependency changes will cause Nix builds to fail.
+</Warning>
+
+## Build Troubleshooting
+
+### Build Cache Issues
+
+If you encounter strange build errors, try cleaning the Gradle cache:
+
+```bash
+gradle clean
+gradle build --parallel
+```
+
+### Kotlin Plugin Issues
+
+Ensure the Kotlin plugin is properly configured. The root `build.gradle.kts` applies Kotlin to all plugin projects:
+
+```kotlin
+apply(plugin = "org.jetbrains.kotlin.jvm")
+```
+
+### Missing Repositories
+
+If dependencies fail to download, verify the required repositories are configured in `build.gradle.kts`:
+
+```kotlin
+repositories {
+  mavenCentral()
+  maven("https://repo.purpurmc.org/snapshots")
+  maven("https://nexus.frengor.com/repository/public/")
+  maven("https://nexus.scarsz.me/content/groups/public/")
+}
+```
+
+## Local Testing
+
+After building a plugin, you can test it on a local Purpur server. See [Deployment](/setup/deployment) for instructions on running a local test server.
+
+## Code Quality
+
+Before committing your changes:
+
+<Steps>
+  <Step title="Format your code">
+    ```bash
+    nix fmt
+    ```
+  </Step>
+  
+  <Step title="Build successfully">
+    ```bash
+    gradle build --parallel
+    ```
+  </Step>
+  
+  <Step title="Run tests">
+    ```bash
+    nix flake check -L
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+- Learn about [Deployment](/setup/deployment) options for testing your plugins
+- Review contribution guidelines in `CONTRIBUTING.md`
+- Set up a local Purpur server for testing

@@ -1,0 +1,219 @@
+---
+title: Common interfaces
+description: Shared interfaces and patterns across Oyasai plugins
+---
+
+Common interfaces, patterns, and base classes used across Oyasai Server plugins.
+
+## Plugin structure
+
+All Oyasai plugins follow a standard structure:
+
+### Main plugin class
+
+```kotlin
+package your.plugin.package
+
+import org.bukkit.plugin.java.JavaPlugin
+
+class YourPlugin : JavaPlugin() {
+    override fun onEnable() {
+        logger.info("${description.name} v${description.version} enabled")
+        // Initialize plugin
+    }
+    
+    override fun onDisable() {
+        logger.info("${description.name} disabled")
+        // Cleanup
+    }
+}
+```
+
+## Command pattern
+
+### Command executor
+
+```kotlin
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.entity.Player
+
+class YourCommand : CommandExecutor {
+    override fun onCommand(
+        sender: CommandSender,
+        command: Command,
+        label: String,
+        args: Array<out String>
+    ): Boolean {
+        if (sender !is Player) {
+            sender.sendMessage("This command can only be used by players")
+            return true
+        }
+        
+        // Command logic
+        return true
+    }
+}
+```
+
+### Tab completer
+
+```kotlin
+import org.bukkit.command.Command
+import org.bukkit.command.CommandSender
+import org.bukkit.command.TabCompleter
+
+class YourTabCompleter : TabCompleter {
+    override fun onTabComplete(
+        sender: CommandSender,
+        command: Command,
+        alias: String,
+        args: Array<out String>
+    ): List<String>? {
+        return when (args.size) {
+            1 -> listOf("option1", "option2", "option3")
+                .filter { it.startsWith(args[0], ignoreCase = true) }
+            else -> null
+        }
+    }
+}
+```
+
+## Event listener pattern
+
+```kotlin
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
+
+class YourListener : Listener {
+    @EventHandler
+    fun onPlayerJoin(event: PlayerJoinEvent) {
+        val player = event.player
+        // Handle event
+    }
+}
+```
+
+## Configuration pattern
+
+### Loading configuration
+
+```kotlin
+import org.bukkit.configuration.file.FileConfiguration
+import org.bukkit.configuration.file.YamlConfiguration
+import java.io.File
+
+class ConfigManager(private val plugin: JavaPlugin) {
+    private lateinit var config: FileConfiguration
+    private lateinit var configFile: File
+    
+    fun loadConfig() {
+        configFile = File(plugin.dataFolder, "config.yml")
+        if (!configFile.exists()) {
+            plugin.saveResource("config.yml", false)
+        }
+        config = YamlConfiguration.loadConfiguration(configFile)
+    }
+    
+    fun reloadConfig() {
+        config = YamlConfiguration.loadConfiguration(configFile)
+    }
+    
+    fun saveConfig() {
+        config.save(configFile)
+    }
+}
+```
+
+## Common dependencies
+
+### Purpur API
+
+All plugins depend on Purpur API 1.21:
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    compileOnly(libs.purpur.api)
+}
+```
+
+### Optional dependencies
+
+<Accordion title="Vault API">
+  Economy and permissions integration.
+  
+  ```kotlin
+  dependencies {
+      compileOnly(libs.vault.api)
+  }
+  ```
+</Accordion>
+
+<Accordion title="TokenManager">
+  Token-based economy system.
+  
+  ```yaml
+  # plugin.yml
+  depend:
+    - TokenManager
+  ```
+</Accordion>
+
+<Accordion title="AdvancedBan">
+  Ban management system.
+  
+  ```yaml
+  # plugin.yml
+  softdepend:
+    - AdvancedBan
+  ```
+</Accordion>
+
+## Plugin.yml structure
+
+```yaml
+name: YourPlugin
+version: 1.0.0
+main: your.plugin.package.YourPlugin
+api-version: "1.21"
+authors: [Author1, Author2]
+website: "https://github.com/OyasaiServer"
+description: "Plugin description"
+
+commands:
+  yourcommand:
+    description: "Command description"
+    usage: "/yourcommand [args]"
+    aliases: [yc, ycmd]
+    permission: your.plugin.command
+
+permissions:
+  your.plugin.command:
+    description: "Permission description"
+    default: true
+  your.plugin.admin:
+    description: "Admin permission"
+    default: op
+```
+
+## Testing utilities
+
+### Mock player
+
+```kotlin
+import org.bukkit.entity.Player
+import org.mockito.Mockito.mock
+
+val mockPlayer = mock(Player::class.java)
+```
+
+### Test server
+
+For local testing, use the minimal server configuration:
+
+```bash
+nix run .#oyasai-minecraft-minimal
+```

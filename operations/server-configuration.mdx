@@ -1,0 +1,263 @@
+---
+title: 'Server Configuration'
+description: 'Configure and customize your Oyasai Minecraft server instance'
+---
+
+## Overview
+
+Oyasai Server Platform uses a declarative Nix-based configuration system for managing Minecraft server instances. Server configurations are defined in `.nix` files that specify version, plugins, and runtime parameters.
+
+## Server Definition
+
+Server instances are created using the `oyasaiPurpur` function, which configures a Purpur-based Minecraft server:
+
+```nix packages/oyasai-minecraft-main.nix
+{
+  oyasaiPurpur,
+  oyasai-plugin-registry,
+  lib,
+  oyasaiDockerTools,
+  stdenv,
+}:
+
+let
+  final = oyasaiPurpur rec {
+    name = "oyasai-minecraft-main";
+    version = "1.21.8";
+
+    plugins = with (oyasai-plugin-registry.forVersion version); [
+      essentialsx
+      fastasyncworldedit
+      luckperms
+      plugmanx
+      protocollib
+      vault
+      nuvotifier
+      vertex
+    ];
+
+    passthru = lib.optionalAttrs stdenv.hostPlatform.isLinux {
+      docker = oyasaiDockerTools.buildLayeredImage {
+        inherit name;
+        config.Cmd = [ "${lib.getExe final}" ];
+      };
+    };
+  };
+in
+final
+```
+
+### Key Parameters
+
+<ParamField path="name" type="string" required>
+  Unique identifier for the server instance
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Minecraft server version (e.g., "1.21.8")
+</ParamField>
+
+<ParamField path="plugins" type="array" required>
+  List of plugin identifiers from the plugin registry
+</ParamField>
+
+<ParamField path="directory" type="string" default=".">
+  Working directory for server data
+</ParamField>
+
+<ParamField path="port" type="number" default="25565">
+  Server port for Minecraft connections
+</ParamField>
+
+<ParamField path="cleanPlugins" type="boolean" default="true">
+  Whether to clean plugins directory on startup
+</ParamField>
+
+## Docker Container Configuration
+
+The production server runs in Docker containers with environment-specific configurations:
+
+```typescript packages/cdktf/src/stacks/docker-stack.ts
+const minecraftMainContainer = new Container(
+  this,
+  this.envAwareId("minecraft-main-container"),
+  {
+    image: images.minecraftMain.imageId,
+    name: "minecraft-main",
+    restart: "unless-stopped",
+    tty: true,
+    stdinOpen: true,
+    destroyGraceSeconds: 2 * 60,
+    init: true,
+    ports: ports({
+      tcp: [8100, 8192, 25565, 25575],
+      udp: [19132],
+    }),
+    env: envs({
+      EULA: true,
+      TYPE: "PURPUR",
+      VERSION: "1.21.8",
+      USE_MEOWICE_FLAGS: this.environment !== "local",
+      ENABLE_ROLLING_LOGS: true,
+      LOG_TIMESTAMP: true,
+      MOTD: "§l§r                 §b§lOyasai§f§lServer§7 [v1.21.8]§r\n§l§f            建築勢は集合だ！建築！建築！建築！！！",
+      MEMORY: this.envAwareConfig({
+        production: "28G",
+        development: "12G",
+        local: "5G",
+      }),
+      RCON_PASSWORD: this.secrets.RCON_PASSWORD,
+    }),
+    healthcheck: {
+      test: ["mc-health"],
+      startPeriod: "1m",
+      interval: "5s",
+      retries: 20,
+    },
+  },
+);
+```
+
+### Network Ports
+
+<ResponseField name="TCP Ports" type="array">
+  - **25565**: Main Minecraft server
+  - **25575**: RCON remote console
+  - **8100**: BluMap web interface
+  - **8192**: Additional service port
+</ResponseField>
+
+<ResponseField name="UDP Ports" type="array">
+  - **19132**: Bedrock Edition (Geyser)
+</ResponseField>
+
+## Environment Variables
+
+<ParamField path="EULA" type="boolean" required>
+  Accept Minecraft EULA (must be `true`)
+</ParamField>
+
+<ParamField path="TYPE" type="string" default="PURPUR">
+  Server type (PURPUR, PAPER, SPIGOT)
+</ParamField>
+
+<ParamField path="VERSION" type="string" required>
+  Minecraft version to run
+</ParamField>
+
+<ParamField path="MEMORY" type="string" required>
+  JVM memory allocation (e.g., "28G", "12G", "5G")
+</ParamField>
+
+<ParamField path="USE_MEOWICE_FLAGS" type="boolean" default="false">
+  Enable optimized JVM flags for production
+</ParamField>
+
+<ParamField path="ENABLE_ROLLING_LOGS" type="boolean" default="false">
+  Enable log rotation
+</ParamField>
+
+<ParamField path="LOG_TIMESTAMP" type="boolean" default="false">
+  Add timestamps to log entries
+</ParamField>
+
+<ParamField path="MOTD" type="string">
+  Server message of the day (supports color codes)
+</ParamField>
+
+<ParamField path="RCON_PASSWORD" type="string" required>
+  Password for RCON access
+</ParamField>
+
+<ParamField path="ICON" type="string">
+  URL to server icon image
+</ParamField>
+
+## Health Checks
+
+The server implements health checking to ensure availability:
+
+```yaml
+healthcheck:
+  test: ["mc-health"]
+  startPeriod: "1m"
+  interval: "5s"
+  retries: 20
+```
+
+- **Start Period**: 1 minute grace period for server startup
+- **Interval**: Check every 5 seconds
+- **Retries**: Up to 20 failed checks before marking unhealthy
+
+## Server Startup
+
+The entrypoint script handles plugin synchronization:
+
+```bash packages/minecraft-main/entrypoint.sh
+#!/bin/bash
+
+set -euo pipefail
+
+rm /data/plugins/*.jar
+rm -rf /data/plugins/.paper-remapped
+
+rsync -a /overlays/ /data/
+
+chown root -R /data/
+
+exec /image/scripts/start
+```
+
+<Steps>
+  <Step title="Clean plugins directory">
+    Remove existing plugin JARs and remapped files
+  </Step>
+  
+  <Step title="Sync overlays">
+    Copy fresh plugins from overlays to data directory
+  </Step>
+  
+  <Step title="Fix permissions">
+    Set ownership to root user
+  </Step>
+  
+  <Step title="Start server">
+    Execute main server startup script
+  </Step>
+</Steps>
+
+## Environment-Specific Configuration
+
+The platform supports three environments with different resource allocations:
+
+<Tabs>
+  <Tab title="Production">
+    - **Memory**: 28GB
+    - **Features**: Optimized JVM flags, rolling logs, automated backups
+    - **Location**: Remote production server
+  </Tab>
+  
+  <Tab title="Development">
+    - **Memory**: 12GB
+    - **Features**: Standard configuration for testing
+    - **Location**: Development server
+  </Tab>
+  
+  <Tab title="Local">
+    - **Memory**: 5GB
+    - **Features**: Minimal configuration for local development
+    - **Location**: Local Docker socket
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin Management" icon="puzzle-piece" href="/operations/plugin-management">
+    Learn how to add and manage server plugins
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line" href="/operations/monitoring">
+    Set up server monitoring and health checks
+  </Card>
+</CardGroup>

@@ -1,0 +1,378 @@
+---
+title: Monorepo Structure
+description: Organization and layout of the Oyasai Server Platform monorepo
+---
+
+The Oyasai Server Platform uses a monorepo structure that combines Gradle multi-project builds with Nix package management. This approach provides clear separation between plugins, packages, and infrastructure code.
+
+## Repository Layout
+
+```
+oyasai-server-platform/
+├── flake.nix                 # Root Nix flake definition
+├── flake.lock               # Locked flake inputs
+├── settings.gradle.kts      # Gradle multi-project settings
+├── build.gradle.kts         # Root Gradle build configuration
+├── gradle.lock              # Locked Gradle dependencies
+├── gradle/
+│   └── libs.versions.toml   # Centralized dependency versions
+├── nix/                     # Nix configuration modules
+│   ├── oyasai-scope.nix    # Custom package scope
+│   ├── devshells.nix       # Development environments
+│   ├── docker.nix          # Docker image builders
+│   ├── oyasai-purpur.nix   # Server builder function
+│   ├── oyasai-docker-tools.nix
+│   └── treefmt.nix         # Code formatting
+├── plugins/                 # Gradle subprojects
+│   ├── OyasaiUtilities/
+│   ├── OyasaiPets/
+│   ├── OyasaiAdminTools/
+│   ├── DynamicProfile/
+│   ├── EntityPose/
+│   ├── PaintTools/
+│   ├── SocialLikes3/
+│   ├── SocialVotes/
+│   ├── TPswitch/
+│   └── Vertex/
+├── packages/               # Nix packages
+│   ├── oyasai-minecraft-main.nix
+│   ├── oyasai-minecraft-minimal.nix
+│   ├── oyasai-minecraft-marzipan.nix
+│   ├── mariadb.nix
+│   ├── mc-backup.nix
+│   ├── oyasai-plugin-registry/
+│   ├── oyasai-push-nix-images/
+│   ├── minecraft-main/
+│   ├── cdktf/             # Terraform CDK infrastructure
+│   └── secrets/
+├── apps/                  # Additional applications
+│   ├── wiki/
+│   ├── experimental-chat/
+│   └── hello-world/
+└── assets/               # Static assets
+```
+
+## Directory Purposes
+
+### Root Configuration
+
+<AccordionGroup>
+  <Accordion title="flake.nix">
+    The entry point for the Nix flake system. Defines all external dependencies (inputs) and orchestrates the build process through modular imports.
+    
+    ```nix
+    {
+      inputs = {
+        nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+        gradle2nix.url = "github:oyasaiserver/gradle2nix?ref=v2";
+        flake-parts.url = "github:hercules-ci/flake-parts";
+        package-lock2nix.url = "github:anteriorcore/package-lock2nix";
+        devshell.url = "github:numtide/devshell";
+        systems.url = "github:nix-systems/default";
+        treefmt-nix.url = "github:numtide/treefmt-nix";
+      };
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="settings.gradle.kts">
+    Gradle multi-project configuration that automatically discovers and includes all plugin subprojects:
+    
+    ```kotlin
+    rootProject.name = "platform"
+    
+    file("plugins")
+        .listFiles()
+        .filter { it.isDirectory }
+        .forEach { dir -> include(":plugins:${dir.name}") }
+    ```
+    
+    This dynamic discovery means adding a new plugin only requires creating a directory in `plugins/`.
+  </Accordion>
+  
+  <Accordion title="build.gradle.kts">
+    Root build configuration applying common settings to all plugin subprojects:
+    - Kotlin JVM plugin
+    - Shadow plugin for fat JARs
+    - Common repository configuration
+    - Plugin.yml template expansion
+  </Accordion>
+  
+  <Accordion title="gradle/libs.versions.toml">
+    Centralized version catalog for all dependencies:
+    
+    ```toml
+    [versions]
+    kotlin = "2.3.0"
+    purpur-api = "1.21.8-R0.1-SNAPSHOT"
+    shadow = "9.3.1"
+    
+    [libraries]
+    purpur-api = { module = "org.purpurmc.purpur:purpur-api", version.ref = "purpur-api" }
+    kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+    vault-api = { module = "com.github.MilkBowl:VaultAPI", version.ref = "vault" }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### nix/ Directory
+
+Modular Nix configuration split by concern:
+
+<CodeGroup>
+```nix nix/oyasai-scope.nix
+# Defines custom package scope with:
+# - Java toolchain (Temurin JDK/JRE 25)
+# - Build tools (Gradle 9, gradle2nix)
+# - Plugin build orchestration
+# - Server package definitions
+# - Docker image builders
+```
+
+```nix nix/devshells.nix
+# Development environment configuration
+devshells.default = {
+  packages = [
+    nodejs
+    jdk
+    terraform
+    gradle
+    gradle2nix-cli
+  ];
+};
+```
+
+```nix nix/docker.nix
+# Docker image generation for all packages
+# Provides:
+# - Individual image outputs
+# - Aggregate all-docker-images package
+# - Image reference tracking
+```
+
+```nix nix/oyasai-purpur.nix
+# Reusable function to create Minecraft servers
+# Parameters:
+# - name: Package name
+# - version: Minecraft version
+# - plugins: List of plugin JARs
+# - port: Server port (default 25565)
+```
+</CodeGroup>
+
+### plugins/ Directory
+
+Each subdirectory is an independent Gradle subproject:
+
+<Tabs>
+  <Tab title="Plugin Structure">
+    ```
+    plugins/OyasaiUtilities/
+    ├── build.gradle.kts
+    └── src/
+        └── main/
+            ├── kotlin/
+            │   └── com/oyasai/utilities/
+            └── resources/
+                └── plugin.yml
+    ```
+  </Tab>
+  
+  <Tab title="Build Configuration">
+    ```kotlin
+    // plugins/OyasaiUtilities/build.gradle.kts
+    dependencies {
+      compileOnly(libs.purpur.api)
+      compileOnly(libs.vault.api)
+    }
+    ```
+    
+    The root `build.gradle.kts` automatically applies:
+    - Kotlin plugin
+    - Shadow plugin for uber JAR
+    - Plugin.yml processing
+  </Tab>
+  
+  <Tab title="Available Plugins">
+    - **OyasaiUtilities**: Core utility functions
+    - **OyasaiPets**: Pet management system
+    - **OyasaiAdminTools**: Administrative commands
+    - **DynamicProfile**: Player profile customization
+    - **EntityPose**: Entity positioning controls
+    - **PaintTools**: Creative building tools
+    - **SocialLikes3**: Social interaction system
+    - **SocialVotes**: Voting and polling
+    - **TPswitch**: Teleportation utilities
+    - **Vertex**: Custom functionality
+  </Tab>
+</Tabs>
+
+### packages/ Directory
+
+Nix package definitions following the `packagesFromDirectoryRecursive` pattern:
+
+<CardGroup cols={2}>
+  <Card title="Server Packages" icon="server">
+    - `oyasai-minecraft-main.nix` - Production server
+    - `oyasai-minecraft-minimal.nix` - Minimal test server
+    - `oyasai-minecraft-marzipan.nix` - Specialized config
+  </Card>
+  
+  <Card title="Infrastructure" icon="database">
+    - `mariadb.nix` - Database package
+    - `mc-backup.nix` - Backup utilities
+    - `cdktf/` - Terraform infrastructure code
+  </Card>
+  
+  <Card title="Plugin Management" icon="puzzle-piece">
+    - `oyasai-plugin-registry/` - Third-party plugin versions
+    - Plugin registry by Minecraft version
+  </Card>
+  
+  <Card title="Utilities" icon="wrench">
+    - `oyasai-push-nix-images/` - Docker registry push tool
+    - `secrets/` - Encrypted secrets management
+  </Card>
+</CardGroup>
+
+### apps/ Directory
+
+Additional applications in the monorepo:
+
+- **wiki/**: Documentation and wiki site
+- **experimental-chat/**: Chat system experiments
+- **hello-world/**: Example application
+
+## Gradle Multi-Project Build
+
+The Gradle build system automatically includes all plugins:
+
+```kotlin
+// settings.gradle.kts discovers plugins dynamically
+file("plugins")
+    .listFiles()
+    .filter { it.isDirectory }
+    .forEach { dir -> include(":plugins:${dir.name}") }
+```
+
+### Build Features
+
+<Steps>
+  <Step title="Automatic Discovery">
+    New plugins are automatically included when added to `plugins/`
+  </Step>
+  
+  <Step title="Shared Configuration">
+    Common build logic applied to all plugins via root `build.gradle.kts`
+  </Step>
+  
+  <Step title="Version Catalog">
+    Centralized dependency versions in `gradle/libs.versions.toml`
+  </Step>
+  
+  <Step title="Shadow JARs">
+    All plugins produce uber JARs with dependencies shaded
+  </Step>
+</Steps>
+
+## Nix Integration
+
+The monorepo structure integrates with Nix:
+
+1. **Source Filtering**: Nix builds use `lib.fileset` to select only relevant sources
+2. **Batch Building**: All plugins built together for efficiency
+3. **Individual Derivations**: Each plugin extracted as separate output
+4. **Package Discovery**: `packagesFromDirectoryRecursive` auto-imports package definitions
+
+```nix
+# From oyasai-scope.nix
+plugins-batch = scopeSelf.gradle2nix.buildGradlePackage {
+  src = with lib.fileset; toSource {
+    root = ../.; 
+    fileset = unions [
+      ../build.gradle.kts
+      ../gradle
+      ../plugins
+      ../settings.gradle.kts
+    ];
+  };
+};
+```
+
+## Adding New Components
+
+<Tabs>
+  <Tab title="New Plugin">
+    ```bash
+    # Create plugin directory
+    mkdir -p plugins/MyPlugin/src/main/{kotlin,resources}
+    
+    # Create build.gradle.kts
+    cat > plugins/MyPlugin/build.gradle.kts <<EOF
+    dependencies {
+      compileOnly(libs.purpur.api)
+    }
+    EOF
+    
+    # Plugin automatically included in build
+    ```
+  </Tab>
+  
+  <Tab title="New Package">
+    ```bash
+    # Create package definition
+    cat > packages/my-package.nix <<EOF
+    { stdenv }:
+    stdenv.mkDerivation {
+      pname = "my-package";
+      version = "1.0.0";
+      # ...
+    }
+    EOF
+    
+    # Automatically available in oyasaiScope
+    ```
+  </Tab>
+  
+  <Tab title="New Server Config">
+    ```nix
+    # packages/oyasai-minecraft-custom.nix
+    { oyasaiPurpur, oyasai-plugin-registry }:
+    
+    oyasaiPurpur rec {
+      name = "oyasai-minecraft-custom";
+      version = "1.21.8";
+      
+      plugins = with (oyasai-plugin-registry.forVersion version); [
+        essentialsx
+        # ... additional plugins
+      ];
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Warning>
+  **Avoid deeply nested directories** - Keep plugin code under `plugins/{PluginName}/src/`
+</Warning>
+
+<Tip>
+  Use the version catalog in `gradle/libs.versions.toml` for all dependencies to ensure consistency across plugins.
+</Tip>
+
+<Note>
+  When adding Nix packages, follow the existing naming convention: lowercase with hyphens (e.g., `oyasai-my-package`).
+</Note>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Understand the overall system architecture
+  </Card>
+  <Card title="Plugin System" icon="puzzle-piece" href="/architecture/plugin-system">
+    Learn how to develop plugins
+  </Card>
+</CardGroup>

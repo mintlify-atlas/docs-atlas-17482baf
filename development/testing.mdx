@@ -1,0 +1,527 @@
+---
+title: Testing
+description: Test plugins and server configurations on Oyasai Server Platform
+---
+
+## Overview
+
+Oyasai Server Platform provides multiple approaches for testing:
+
+- **Local Purpur Server**: Test plugins in a real Minecraft environment
+- **Nix Flake Checks**: Automated build and test validation
+- **CI Pipeline**: Continuous integration testing
+
+## Local Purpur Server Testing
+
+### Using oyasai-minecraft-minimal
+
+The `oyasai-minecraft-minimal` package is designed for local plugin testing.
+
+#### 1. Configure Your Test Server
+
+Edit `packages/oyasai-minecraft-minimal.nix`:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+let
+  inherit (oyasaiScope.plugins) 
+    oyasaiutilities 
+    dynamicprofile
+    oyasaipets;
+in
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-minimal";
+  version = "1.21.8";
+  directory = "local";
+
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    fastasyncworldedit
+    plugmanx
+  ] ++ [
+    # Add your plugins here
+    oyasaiutilities
+    dynamicprofile
+  ];
+}
+```
+
+<Tip>
+The `oyasai-minecraft-minimal` configuration is meant to be customized for your testing needs. The file is referenced in `CONTRIBUTING.md:58` as the testing template.
+</Tip>
+
+#### 2. Build Your Plugins
+
+```bash
+gradle build --parallel
+```
+
+Or build a specific plugin:
+
+```bash
+gradle :plugins:OyasaiUtilities:build
+```
+
+#### 3. Run the Test Server
+
+```bash
+nix run .#oyasai-minecraft-minimal
+```
+
+The server will:
+1. Create the `local/` directory
+2. Install all configured plugins
+3. Accept the EULA automatically
+4. Start Purpur 1.21.8 on port 25565
+
+#### 4. Connect and Test
+
+Connect to `localhost:25565` with your Minecraft client (version 1.21.8).
+
+### Custom Test Configurations
+
+Create a dedicated test configuration:
+
+#### 1. Create Test Package
+
+```bash
+nano packages/oyasai-minecraft-test.nix
+```
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+let
+  inherit (oyasaiScope.plugins) myplugin;
+in
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-test";
+  version = "1.21.8";
+  directory = "test-server";
+  port = 25566;  # Different port
+
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+  ] ++ [
+    myplugin  # Your plugin under test
+  ];
+}
+```
+
+#### 2. Register and Run
+
+Stage the file:
+```bash
+git add packages/oyasai-minecraft-test.nix
+```
+
+Add to `nix/oyasai-scope.nix` exports if desired, then:
+
+```bash
+nix run .#oyasai-minecraft-test
+```
+
+## Iterative Development Workflow
+
+### Fast Iteration Loop
+
+1. **Make Code Changes** to your plugin
+
+2. **Rebuild Plugin**:
+   ```bash
+   gradle :plugins:MyPlugin:build
+   ```
+
+3. **Update Nix Lock** (if dependencies changed):
+   ```bash
+   gradle2nix
+   ```
+
+4. **Rebuild Server Package**:
+   ```bash
+   nix build .#oyasai-minecraft-minimal
+   ```
+
+5. **Restart Server**:
+   ```bash
+   nix run .#oyasai-minecraft-minimal
+   ```
+
+6. **Test In-Game**
+
+### Hot Reloading Plugins
+
+Use PlugManX for hot reloading during development:
+
+1. Include `plugmanx` in your test server configuration
+
+2. Build your plugin:
+   ```bash
+   gradle :plugins:MyPlugin:shadowJar
+   ```
+
+3. Copy to server:
+   ```bash
+   cp plugins/MyPlugin/build/libs/MyPlugin.jar local/plugins/
+   ```
+
+4. In-game or console:
+   ```
+   /plugman reload MyPlugin
+   ```
+
+<Warning>
+Hot reloading doesn't always work cleanly. For major changes, restart the server.
+</Warning>
+
+## Testing Specific Features
+
+### Testing Commands
+
+1. Start the server with your plugin
+2. Join the server
+3. Run commands in-game or via console:
+   ```
+   /your-command arg1 arg2
+   ```
+4. Check server logs for output
+
+### Testing Event Listeners
+
+1. Enable debug logging in your plugin:
+   ```kotlin
+   logger.info("Event triggered: ${event.javaClass.simpleName}")
+   ```
+
+2. Trigger the event in-game (join, break block, etc.)
+3. Check `local/logs/latest.log`
+
+### Testing Configuration Files
+
+1. Run server once to generate default config:
+   ```bash
+   nix run .#oyasai-minecraft-minimal
+   ```
+
+2. Stop server and modify `local/plugins/YourPlugin/config.yml`
+
+3. Restart and verify changes are applied
+
+### Testing Database Integration
+
+For plugins with database dependencies:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "test-with-db";
+  version = "1.21.8";
+  directory = "test-db";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    # Add your database plugin
+  ];
+}
+```
+
+Run a local MariaDB or MySQL server and configure your plugin to connect.
+
+## Nix Flake Checks
+
+### Running All Checks
+
+```bash
+nix flake check -L
+```
+
+This command:
+- Builds all packages
+- Builds all plugins
+- Runs any defined tests
+- Validates Nix expressions
+
+See `CONTRIBUTING.md:46-50`.
+
+### Check Output
+
+```
+• building build-oyasai-minecraft-main
+• building build-oyasai-minecraft-minimal
+• building build-plugins-batch
+• building build-oyasaiutilities
+• building build-dynamicprofile
+...
+```
+
+### Checking Specific Packages
+
+```bash
+nix build .#oyasai-minecraft-minimal --rebuild
+```
+
+## Continuous Integration
+
+The CI pipeline automatically runs on all pull requests.
+
+### CI Checks
+
+1. **Build Validation**: All packages must build successfully
+2. **Format Checking**: Code must be formatted (see below)
+3. **Lockfile Sync**: `gradle.lock` must be up to date
+
+### Format Checking
+
+Code must be formatted before committing:
+
+```bash
+nix fmt
+```
+
+This formats:
+- Nix files (`.nix`)
+- Kotlin files (`.kt`)
+- Other configured file types
+
+See `CONTRIBUTING.md:33-37`.
+
+### Pre-Commit Validation
+
+Before pushing, run:
+
+```bash
+nix fmt
+nix flake check -L
+```
+
+If both pass, your PR will likely pass CI.
+
+## Debugging
+
+### Server Logs
+
+Check `local/logs/latest.log` for server output:
+
+```bash
+tail -f local/logs/latest.log
+```
+
+### Plugin Logs
+
+Add logging to your plugin:
+
+```kotlin
+class MyPlugin : JavaPlugin() {
+  override fun onEnable() {
+    logger.info("${description.name} enabled")
+    logger.warning("This is a warning")
+    logger.severe("This is an error")
+  }
+}
+```
+
+### Verbose Nix Output
+
+For build debugging:
+
+```bash
+nix build .#oyasai-minecraft-minimal --print-build-logs
+```
+
+Or with checks:
+
+```bash
+nix flake check -L  # -L shows build logs
+```
+
+### Gradle Debug
+
+Enable Gradle debug output:
+
+```bash
+gradle build --debug
+```
+
+Or for specific tasks:
+
+```bash
+gradle :plugins:MyPlugin:build --debug
+```
+
+## Common Testing Scenarios
+
+### Testing Plugin Interactions
+
+Test how multiple plugins interact:
+
+```nix
+plugins = [
+  plugin1
+  plugin2  # Depends on plugin1
+];
+```
+
+Verify:
+- Load order is correct
+- Events fire in expected sequence
+- Shared resources don't conflict
+
+### Testing with External Plugins
+
+Test your plugin alongside popular external plugins:
+
+```nix
+plugins = with (oyasai-plugin-registry.forVersion version); [
+  vault          # Economy API
+  luckperms      # Permissions
+  essentialsx    # Core functionality
+] ++ [
+  yourplugin     # Your plugin
+];
+```
+
+### Performance Testing
+
+For load testing:
+
+1. Configure server with JVM options:
+   ```bash
+   nix run .#oyasai-minecraft-minimal -- -Xmx2G -Xms2G
+   ```
+
+2. Use tools like [spark](https://spark.lucko.me/) plugin for profiling
+
+3. Monitor `local/logs/latest.log` for lag warnings
+
+## Best Practices
+
+### 1. Isolate Test Environments
+
+Use separate directories for different test configurations:
+
+```nix
+directory = "test-feature-a";  # One server
+directory = "test-feature-b";  # Another server
+```
+
+### 2. Clean State Testing
+
+For clean testing, delete the server directory:
+
+```bash
+rm -rf local/
+nix run .#oyasai-minecraft-minimal
+```
+
+### 3. Version Testing
+
+If supporting multiple Minecraft versions:
+
+```nix
+# Test on 1.21.8
+oyasaiPurpur { version = "1.21.8"; ... }
+
+# Future: Test on other versions
+# oyasaiPurpur { version = "1.22.0"; ... }
+```
+
+### 4. Document Test Cases
+
+Create test documentation in your plugin:
+
+```
+plugins/MyPlugin/docs/
+├── testing.md
+└── test-cases.md
+```
+
+### 5. Automated Testing
+
+For unit tests, use JUnit in your plugin:
+
+```kotlin
+// src/test/kotlin/MyPluginTest.kt
+import org.junit.jupiter.api.Test
+import kotlin.test.assertEquals
+
+class MyPluginTest {
+  @Test
+  fun testFeature() {
+    assertEquals(expected, actual)
+  }
+}
+```
+
+Run tests:
+
+```bash
+gradle :plugins:MyPlugin:test
+```
+
+## Troubleshooting
+
+### Server Won't Start
+
+1. Check Java version:
+   ```bash
+   which java
+   java -version
+   ```
+
+2. Check port availability:
+   ```bash
+   lsof -i :25565
+   ```
+
+3. Review logs:
+   ```bash
+   cat local/logs/latest.log
+   ```
+
+### Plugin Not Loading
+
+1. Verify plugin is in configuration:
+   ```nix
+   plugins = [ myplugin ];  # Is your plugin here?
+   ```
+
+2. Check build output:
+   ```bash
+   ls -la plugins/MyPlugin/build/libs/
+   ```
+
+3. Check server plugins directory:
+   ```bash
+   ls -la local/plugins/
+   ```
+
+4. Check server console:
+   ```
+   [INFO] Loading plugins (X)
+   [INFO] Enabling MyPlugin vX.X.X
+   ```
+
+### Gradle Lock Out of Sync
+
+```bash
+gradle2nix
+git diff gradle.lock  # Review changes
+git add gradle.lock
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin Development" icon="puzzle-piece" href="/development/plugin-development">
+    Continue developing your plugins
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Submit your tested changes
+  </Card>
+  <Card title="Gradle Workflow" icon="hammer" href="/development/gradle-workflow">
+    Deep dive into build system
+  </Card>
+  <Card title="Nix Packages" icon="box" href="/development/nix-packages">
+    Create advanced server configurations
+  </Card>
+</CardGroup>

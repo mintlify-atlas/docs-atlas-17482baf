@@ -1,122 +1,111 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Oyasai Server Platform",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#242b2c",
+    "light": "#040404",
+    "dark": "#6a6a6d"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "/favicon.png",
+  "logo": {
+    "light": "https://media.brand.dev/2cf77928-82c6-4050-921b-e06e14b92fea.svg",
+    "dark": "https://media.brand.dev/2cf77928-82c6-4050-921b-e06e14b92fea.svg"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Oyasaiserver/platform"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Oyasaiserver/platform"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Setup & Deployment",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "setup/prerequisites",
+              "setup/development-environment",
+              "setup/building",
+              "setup/deployment"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Architecture",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "architecture/overview",
+              "architecture/monorepo-structure",
+              "architecture/nix-flakes",
+              "architecture/plugin-system"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Plugins",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "plugins/overview",
+              "plugins/oyasai-utilities",
+              "plugins/oyasai-admin-tools",
+              "plugins/oyasai-pets",
+              "plugins/dynamic-profile",
+              "plugins/entity-pose",
+              "plugins/paint-tools",
+              "plugins/social-likes",
+              "plugins/social-votes",
+              "plugins/tpswitch",
+              "plugins/vertex"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Operations",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "operations/server-configuration",
+              "operations/plugin-management",
+              "operations/monitoring",
+              "operations/backups"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/plugin-development",
+              "development/gradle-workflow",
+              "development/nix-packages",
+              "development/testing",
+              "development/contributing"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "API Reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Plugin APIs",
             "pages": [
-              "api-reference/introduction"
+              "api/oyasai-utilities",
+              "api/common-interfaces"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Server Configurations",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api/server-configs",
+              "api/nix-modules"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

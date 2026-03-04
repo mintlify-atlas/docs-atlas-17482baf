@@ -1,0 +1,130 @@
+---
+title: OyasaiUtilities
+description: Core utility functions for Oyasai Server plugins
+---
+
+OyasaiUtilities provides shared utility functions and helper methods used by other Oyasai plugins.
+
+## Overview
+
+- **Version**: 0.1.0
+- **API Version**: 1.21
+- **Authors**: Srain3, takucan
+- **Dependencies**: Purpur API, Vault API
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Color formatting" icon="palette">
+    Convert color codes and strip formatting
+  </Card>
+  <Card title="ItemStack utilities" icon="box">
+    Add display names, lore, and hide flags
+  </Card>
+  <Card title="Teleport history" icon="clock-rotate-left">
+    Track player teleport locations
+  </Card>
+  <Card title="Timer bars" icon="bars-progress">
+    Display countdown timers to players
+  </Card>
+</CardGroup>
+
+## API Reference
+
+### Color formatting
+
+```kotlin
+import icu.oyasai.utilities.OyasaiUtilities.color
+import icu.oyasai.utilities.OyasaiUtilities.unColor
+
+// Convert & to § color codes
+val colored = "&aHello &bWorld".color()
+
+// Strip color codes
+val plain = "§aColored text§r".unColor()
+```
+
+### ItemStack utilities
+
+```kotlin
+import icu.oyasai.utilities.OyasaiUtilities.addText
+import icu.oyasai.utilities.OyasaiUtilities.allHide
+
+val item = ItemStack(Material.DIAMOND_SWORD)
+  .addText(
+    "&6Legendary Sword",
+    mutableListOf("&7A powerful weapon", "&8Forged in fire")
+  )
+  .allHide()
+```
+
+## Commands
+
+<AccordionGroup>
+  <Accordion title="/back - Return to previous location">
+    Teleport back to your previous location.
+    
+    **Aliases**: `/bk`
+  </Accordion>
+  
+  <Accordion title="/forward - Go to next location">
+    Teleport forward in your TP history.
+    
+    **Aliases**: `/fow`, `/fw`
+  </Accordion>
+  
+  <Accordion title="/uuid - Copy player UUID">
+    Display and copy a player's UUID to clipboard.
+  </Accordion>
+  
+  <Accordion title="/timerbar - Manage timer bars">
+    Create and manage countdown timer bars.
+    
+    **Permission**: `oyasaiutilities.timerbar`
+  </Accordion>
+  
+  <Accordion title="/adminbp - Admin blueprint commands">
+    Administrative blueprint management.
+    
+    **Aliases**: `/abp`
+  </Accordion>
+  
+  <Accordion title="/oresmelter - Ore smelting">
+    Manage automatic ore smelting.
+    
+    **Aliases**: `/os`
+  </Accordion>
+  
+  <Accordion title="/menu - Open menu">
+    Open the ChestCommands menu.
+    
+    **Aliases**: `/omu`, `/om`
+  </Accordion>
+</AccordionGroup>
+
+## Permissions
+
+<ParamField path="oyasaiutilities.timerbar" type="permission">
+  Allows use of the `/timerbar` command.
+</ParamField>
+
+<ParamField path="oyasaiutilities.tpdata" type="permission" default="op">
+  View all players' teleport history.
+</ParamField>
+
+<ParamField path="cm.bypass" type="permission" default="op">
+  Bypass CreativeManagement restrictions.
+</ParamField>
+
+<ParamField path="cm.bypass.spawn_egg" type="permission" default="op">
+  Bypass spawn egg restrictions in CreativeManagement.
+</ParamField>
+
+## Source code
+
+The plugin source is located at `plugins/OyasaiUtilities/` in the repository.
+
+Key files:
+- `src/main/kotlin/icu/oyasai/utilities/OyasaiUtilities.kt` - Core utilities
+- `src/main/kotlin/icu/oyasai/utilities/Main.kt` - Plugin entry point
+- `src/main/resources/plugin.yml` - Plugin configuration

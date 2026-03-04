@@ -1,0 +1,105 @@
+---
+title: Prerequisites
+description: System requirements and dependencies for Oyasai Server Platform
+---
+
+Before setting up the Oyasai Server Platform development environment, ensure your system meets the following requirements.
+
+## Operating System
+
+<Warning>
+  Windows users must install and use WSL (Windows Subsystem for Linux). All development work must be performed within the WSL environment.
+</Warning>
+
+Supported operating systems:
+- Linux (any modern distribution)
+- macOS
+- Windows with [WSL](https://learn.microsoft.com/en-us/windows/wsl/install)
+
+### Installing WSL (Windows Only)
+
+If you're on Windows, install WSL before proceeding:
+
+```bash
+wsl --install
+```
+
+After installation, restart your computer and launch your WSL terminal for all subsequent steps.
+
+## Nix Package Manager
+
+The Oyasai Server Platform uses Nix flakes for reproducible development environments and builds. Nix is required for all development work.
+
+### Why Nix?
+
+Nix provides:
+- Reproducible development environments across all team members
+- Declarative dependency management
+- Isolated build environments
+- Automatic dependency resolution for Java, Gradle, Node.js, and other tools
+
+### Installation
+
+<Steps>
+  <Step title="Download and install Nix">
+    Visit [nixos.org](https://nixos.org/download/) and follow the installation instructions.
+    
+    Multi-user installation is recommended, but single-user installation works as well.
+  </Step>
+  
+  <Step title="Restart your terminal">
+    After installation completes, close and reopen your terminal to ensure Nix is available in your PATH.
+  </Step>
+  
+  <Step title="Enable experimental features">
+    Enable the `nix-command` and `flakes` experimental features:
+    
+    ```bash
+    mkdir -p ~/.config/nix && echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+    ```
+  </Step>
+</Steps>
+
+## Git
+
+Git is required for version control and must be installed on your system. Most systems come with Git pre-installed, but you can verify:
+
+```bash
+git --version
+```
+
+If Git is not installed, use your system's package manager:
+
+<CodeGroup>
+```bash Ubuntu/Debian
+sudo apt-get update
+sudo apt-get install git
+```
+
+```bash macOS
+brew install git
+```
+
+```bash Fedora
+sudo dnf install git
+```
+</CodeGroup>
+
+## Disk Space
+
+Ensure you have adequate disk space:
+- **Minimum**: 5 GB free space
+- **Recommended**: 10 GB or more
+
+Nix stores build artifacts and dependencies, which can consume significant space over time.
+
+## Internet Connection
+
+A stable internet connection is required for:
+- Downloading Nix packages and dependencies
+- Fetching Gradle dependencies
+- Accessing Maven repositories (purpurmc.org, nexus.frengor.com, etc.)
+
+## Next Steps
+
+Once all prerequisites are installed, proceed to [Development Environment](/setup/development-environment) to set up your development shell.

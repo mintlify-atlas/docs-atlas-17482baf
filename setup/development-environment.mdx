@@ -1,0 +1,154 @@
+---
+title: Development Environment
+description: Set up your local development environment for Oyasai Server Platform
+---
+
+The Oyasai Server Platform uses Nix flakes to provide a complete, reproducible development environment with all necessary tools and dependencies.
+
+## Clone the Repository
+
+First, clone the platform repository:
+
+```bash
+git clone https://github.com/oyasaiserver/platform.git
+cd platform
+```
+
+## Verify Nix Setup
+
+Before entering the development shell, verify that Nix flakes are working correctly:
+
+```bash
+nix flake show
+```
+
+If this command completes without errors, your Nix installation is configured correctly.
+
+## Enter the Development Shell
+
+The development shell (devshell) contains all tools needed for development:
+
+```bash
+nix develop
+```
+
+<Note>
+  The first time you run `nix develop`, it may take several minutes to download and build all dependencies. Subsequent runs will be much faster.
+</Note>
+
+### What's Included?
+
+The development shell automatically provides:
+
+- **Java Development Kit (JDK)** - For building Kotlin/Java plugins
+- **Gradle** - Build automation tool
+- **gradle2nix** - Tool for generating Nix expressions from Gradle dependencies
+- **Node.js** - For web application development
+- **Terraform** - Infrastructure as code tool
+
+You don't need to install any of these tools manually. They're all automatically available when you enter the devshell.
+
+## Project Structure
+
+The Oyasai Server Platform is a monorepo containing plugins, infrastructure, and web applications:
+
+```
+platform/
+├── plugins/          # Minecraft plugins (Kotlin/Java)
+│   ├── OyasaiPets/
+│   ├── OyasaiUtilities/
+│   ├── OyasaiAdminTools/
+│   └── ...
+├── packages/         # Nix package definitions
+├── apps/             # Web applications
+├── nix/              # Nix configuration modules
+├── build.gradle.kts  # Root Gradle build configuration
+├── flake.nix         # Nix flake definition
+└── CONTRIBUTING.md   # Contribution guidelines
+```
+
+## Available Plugins
+
+The platform currently includes these plugins:
+
+- **DynamicProfile** - Dynamic player profile management
+- **EntityPose** - Entity pose manipulation
+- **OyasaiAdminTools** - Administrative utilities
+- **OyasaiPets** - Pet system with custom features
+- **OyasaiUtilities** - General utility functions
+- **PaintTools** - Painting and art tools
+- **SocialLikes3** - Social interaction system
+- **SocialVotes** - Voting system
+- **TPswitch** - Teleportation switching
+- **Vertex** - Vertex manipulation tools
+
+## Verify Your Setup
+
+To ensure everything is working correctly, try running these commands from within the devshell:
+
+<Steps>
+  <Step title="Check Java version">
+    ```bash
+    java -version
+    ```
+  </Step>
+  
+  <Step title="Check Gradle version">
+    ```bash
+    gradle --version
+    ```
+  </Step>
+  
+  <Step title="Check Node.js version">
+    ```bash
+    node --version
+    ```
+  </Step>
+</Steps>
+
+All commands should execute successfully without "command not found" errors.
+
+## Code Formatting
+
+The project enforces code formatting standards. Unformatted code will not be accepted in pull requests.
+
+To format all code:
+
+```bash
+nix fmt
+```
+
+<Warning>
+  Always run `nix fmt` before committing your changes. CI will reject pull requests with unformatted code.
+</Warning>
+
+## Dependency Management
+
+### Gradle Dependencies
+
+The platform uses `gradle2nix` to convert Gradle dependencies into Nix expressions. This ensures reproducible builds.
+
+If you modify dependencies in any `build.gradle.kts` file, regenerate the lockfile:
+
+```bash
+gradle2nix
+```
+
+This updates `gradle.lock` to reflect your dependency changes.
+
+### Maven Repositories
+
+The project uses these Maven repositories:
+
+- **Maven Central** - Standard Java/Kotlin libraries
+- **Purpur MC** - `https://repo.purpurmc.org/snapshots`
+- **Frengor Nexus** - `https://nexus.frengor.com/repository/public/`
+- **Scarsz Nexus** - `https://nexus.scarsz.me/content/groups/public/`
+
+## Next Steps
+
+With your development environment configured, you can:
+
+- Learn about [Building](/setup/building) the project
+- Explore [Deployment](/setup/deployment) options
+- Start contributing by following the guidelines in `CONTRIBUTING.md`

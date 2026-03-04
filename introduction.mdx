@@ -1,0 +1,143 @@
+---
+title: Introduction
+description: Infrastructure platform for managing the Oyasai Minecraft server ecosystem
+---
+
+# Introduction
+
+Oyasai Server Platform is a comprehensive infrastructure platform for managing the Oyasai Minecraft server. Built as a monorepo, it provides unified management of plugins, infrastructure configurations, and web applications using Nix flakes for reproducible builds and deployments.
+
+## What is Oyasai Server Platform?
+
+Oyasai Server Platform is an integrated development and deployment environment that leverages Nix's reproducibility guarantees to manage:
+
+- **Custom Minecraft plugins** written in Kotlin for the Purpur server
+- **Server configurations** with declarative Nix expressions
+- **Infrastructure as code** using Terraform and Docker
+- **Development tooling** with consistent environments across all contributors
+
+The platform uses Nix flakes to ensure that all builds are reproducible, all dependencies are version-locked, and development environments are identical across different machines.
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Declarative Server Configs" icon="server">
+    Define Purpur server configurations in Nix with version pinning, plugin management, and automated setup
+  </Card>
+  
+  <Card title="Plugin Development" icon="puzzle-piece">
+    Build and test Kotlin plugins with Gradle integration and automated dependency management
+  </Card>
+  
+  <Card title="Reproducible Builds" icon="rotate">
+    Nix flakes ensure identical builds across development, CI, and production environments
+  </Card>
+  
+  <Card title="Unified Tooling" icon="toolbox">
+    Single development shell with Java, Gradle, Node.js, Terraform, and all required tools
+  </Card>
+</CardGroup>
+
+## Architecture Overview
+
+The platform is structured as a Nix-based monorepo:
+
+```plaintext
+platform/
+├── plugins/          # Custom Minecraft plugins (Kotlin)
+├── packages/         # Nix packages (server configs, tools)
+├── nix/              # Nix modules and configurations
+├── apps/             # Web applications
+└── flake.nix         # Flake entry point
+```
+
+### Core Technologies
+
+- **Nix Flakes**: Reproducible package management and build system
+- **Gradle**: Build automation for Kotlin plugins with gradle2nix integration
+- **Purpur**: Minecraft server fork based on Paper with additional features
+- **Kotlin**: Plugin development language
+- **Terraform**: Infrastructure as code for deployment
+
+## Current Plugins
+
+The platform includes several custom plugins:
+
+- **DynamicProfile**: Player profile management
+- **EntityPose**: Entity positioning utilities
+- **OyasaiAdminTools**: Administrative tools for server management
+- **OyasaiPets**: Pet system implementation
+- **OyasaiUtilities**: Core utilities used across the server
+- **PaintTools**: Building and creative tools
+- **SocialLikes3**: Social interaction system
+- **SocialVotes**: Voting system
+- **TPswitch**: Teleportation utilities
+- **Vertex**: Additional server features
+
+## Server Configurations
+
+The platform includes pre-built server configurations:
+
+<CodeGroup>
+```nix oyasai-minecraft-minimal.nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-minimal";
+  version = "1.21.8";
+
+  directory = "local";
+
+  # see packages/oyasai-plugins-registry/data.json
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    fastasyncworldedit
+    plugmanx
+  ];
+}
+```
+</CodeGroup>
+
+This configuration creates a minimal Purpur server with essential plugins. You can run it with:
+
+```bash
+nix run .#oyasai-minecraft-minimal
+```
+
+## Who Is This For?
+
+### Plugin Developers
+
+If you're developing custom Minecraft plugins for Oyasai server, this platform provides a complete development environment with hot-reloading capabilities and automated builds.
+
+### Infrastructure Engineers
+
+Manage server deployments declaratively with Nix, ensuring consistent environments from development to production.
+
+### Contributors
+
+The platform enforces code formatting, conventional commits, and automated testing through CI, making contributions straightforward and reliable.
+
+<Note>
+  Windows users should use WSL (Windows Subsystem for Linux) for development. All work must be done inside the WSL environment.
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Set up your development environment and run your first server
+  </Card>
+  
+  <Card title="Plugin Development" icon="code" href="/plugins/overview">
+    Learn how to build and test Minecraft plugins
+  </Card>
+  
+  <Card title="Server Configuration" icon="gear" href="/operations/server-configuration">
+    Create custom server configurations with Nix
+  </Card>
+  
+  <Card title="Contributing" icon="users" href="/development/contributing">
+    Learn about code standards and contribution workflow
+  </Card>
+</CardGroup>

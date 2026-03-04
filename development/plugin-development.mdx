@@ -1,0 +1,281 @@
+---
+title: Plugin Development
+description: Learn how to develop Minecraft plugins for the Oyasai Server Platform
+---
+
+## Overview
+
+Oyasai Server Platform uses a monorepo structure to manage all Minecraft plugins. Plugins are built using Kotlin, Gradle, and the Purpur API. All development tools are provided through Nix to ensure consistent environments.
+
+## Available Plugins
+
+The platform includes the following plugins:
+
+- **DynamicProfile** - Player profile and statistics management
+- **EntityPose** - Entity positioning utilities
+- **OyasaiAdminTools** - Administrative tools for server management
+- **OyasaiPets** - Pet system with BigWolf feature
+- **OyasaiUtilities** - Collection of utility features (NotNBT, OreReappears, AdminBP, etc.)
+- **PaintTools** - Painting and building tools
+- **SocialLikes3** - Social interaction features
+- **SocialVotes** - Voting system
+- **TPswitch** - Teleportation switching
+- **Vertex** - Additional server utilities
+
+## Development Environment Setup
+
+### Prerequisites
+
+<Warning>
+Windows users must install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) and perform all development work inside WSL.
+</Warning>
+
+### Install Nix
+
+1. Install Nix from [nixos.org](https://nixos.org/download/). Multi-user installation is recommended:
+
+```bash
+sh <(curl -L https://nixos.org/nix/install) --daemon
+```
+
+2. Enable experimental features:
+
+```bash
+mkdir -p ~/.config/nix && echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+```
+
+3. Restart your terminal and verify the installation:
+
+```bash
+nix flake show
+```
+
+4. Enter the development shell:
+
+```bash
+nix develop
+```
+
+The development shell includes:
+- Java (Temurin JDK 25)
+- Gradle 9
+- Node.js 24
+- Terraform
+- gradle2nix CLI
+
+See `nix/devshells.nix:9-20` for the complete package list.
+
+## Project Structure
+
+```
+platform/
+├── plugins/
+│   ├── DynamicProfile/
+│   │   ├── build.gradle.kts
+│   │   └── src/main/kotlin/
+│   ├── OyasaiUtilities/
+│   │   ├── build.gradle.kts
+│   │   └── src/main/kotlin/
+│   └── ...
+├── build.gradle.kts          # Root build configuration
+├── settings.gradle.kts       # Project structure
+└── gradle.lock              # Nix-compatible dependency lock
+```
+
+## Building Plugins
+
+### Build All Plugins
+
+From the repository root:
+
+```bash
+gradle build --parallel
+```
+
+### Build a Specific Plugin
+
+```bash
+gradle :plugins:<plugin-name>:build
+```
+
+For example, to build OyasaiUtilities:
+
+```bash
+gradle :plugins:OyasaiUtilities:build
+```
+
+### Build Configuration
+
+All plugins under `plugins/` are automatically configured by the root `build.gradle.kts` with:
+
+- Kotlin JVM plugin
+- Shadow plugin for creating fat JARs
+- Version property expansion in `plugin.yml`
+- Duplicate strategy handling
+- Custom Maven repositories (Purpur, Frengor, Scarsz)
+
+See `build.gradle.kts:21-53` for the complete configuration.
+
+## Creating a New Plugin
+
+### 1. Create Plugin Directory
+
+```bash
+mkdir -p plugins/MyPlugin/src/main/kotlin/com/oyasai/myplugin
+mkdir -p plugins/MyPlugin/src/main/resources
+```
+
+### 2. Create build.gradle.kts
+
+Create `plugins/MyPlugin/build.gradle.kts`:
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+  // Add other dependencies as needed
+  // compileOnly(libs.vault.api)
+}
+```
+
+### 3. Create plugin.yml
+
+Create `plugins/MyPlugin/src/main/resources/plugin.yml`:
+
+```yaml
+name: MyPlugin
+version: ${version}
+main: com.oyasai.myplugin.MyPlugin
+api-version: '1.21'
+authors: [YourName]
+```
+
+### 4. Create Main Plugin Class
+
+Create `plugins/MyPlugin/src/main/kotlin/com/oyasai/myplugin/MyPlugin.kt`:
+
+```kotlin
+package com.oyasai.myplugin
+
+import org.bukkit.plugin.java.JavaPlugin
+
+class MyPlugin : JavaPlugin() {
+  override fun onEnable() {
+    logger.info("${description.name} has been enabled!")
+  }
+
+  override fun onDisable() {
+    logger.info("${description.name} has been disabled!")
+  }
+}
+```
+
+### 5. Register in Nix Build
+
+The plugin will be automatically discovered by `settings.gradle.kts:3-6` and built as part of the batch build in `nix/oyasai-scope.nix:50-76`.
+
+## Managing Dependencies
+
+### Adding Dependencies
+
+1. Add the dependency to your plugin's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+  compileOnly(libs.vault.api)
+  implementation("com.example:library:1.0.0")
+}
+```
+
+2. Regenerate the Nix lockfile:
+
+```bash
+gradle2nix
+```
+
+This updates `gradle.lock` to include the new dependencies for reproducible Nix builds.
+
+### Available Repositories
+
+Configured in `build.gradle.kts:13-18`:
+
+- Maven Central
+- Purpur MC: `https://repo.purpurmc.org/snapshots`
+- Frengor: `https://nexus.frengor.com/repository/public/`
+- Scarsz: `https://nexus.scarsz.me/content/groups/public/`
+
+## Plugin Examples
+
+### Example: Simple Command
+
+```kotlin
+package com.oyasai.myplugin
+
+import org.bukkit.command.Command
+import org.bukkit.command.CommandExecutor
+import org.bukkit.command.CommandSender
+import org.bukkit.plugin.java.JavaPlugin
+
+class MyPlugin : JavaPlugin() {
+  override fun onEnable() {
+    getCommand("hello")?.setExecutor(HelloCommand())
+  }
+}
+
+class HelloCommand : CommandExecutor {
+  override fun onCommand(
+    sender: CommandSender,
+    command: Command,
+    label: String,
+    args: Array<out String>
+  ): Boolean {
+    sender.sendMessage("Hello from MyPlugin!")
+    return true
+  }
+}
+```
+
+### Example: Event Listener
+
+```kotlin
+package com.oyasai.myplugin
+
+import org.bukkit.event.EventHandler
+import org.bukkit.event.Listener
+import org.bukkit.event.player.PlayerJoinEvent
+import org.bukkit.plugin.java.JavaPlugin
+
+class MyPlugin : JavaPlugin() {
+  override fun onEnable() {
+    server.pluginManager.registerEvents(JoinListener(), this)
+  }
+}
+
+class JoinListener : Listener {
+  @EventHandler
+  fun onPlayerJoin(event: PlayerJoinEvent) {
+    event.player.sendMessage("Welcome to Oyasai Server!")
+  }
+}
+```
+
+## Testing Plugins Locally
+
+See [Testing](/development/testing) for information on running a local Purpur server with your plugins.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Gradle Workflow" icon="hammer" href="/development/gradle-workflow">
+    Learn about Gradle build tasks and workflows
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Test your plugins with a local server
+  </Card>
+  <Card title="Nix Packages" icon="box" href="/development/nix-packages">
+    Create server configurations with Nix
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Submit your changes via pull request
+  </Card>
+</CardGroup>

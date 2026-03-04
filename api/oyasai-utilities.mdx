@@ -1,0 +1,154 @@
+---
+title: OyasaiUtilities API
+description: API reference for OyasaiUtilities plugin
+---
+
+Complete API reference for the OyasaiUtilities plugin utility functions.
+
+## String extensions
+
+### color()
+
+Convert color codes to Minecraft color format.
+
+<ParamField path="char" type="Char" default="&">
+  Character to convert to § (section sign).
+</ParamField>
+
+<ResponseField name="return" type="String">
+  String with converted color codes.
+</ResponseField>
+
+```kotlin
+val colored = "&aHello &bWorld".color()
+// Result: "§aHello §bWorld"
+
+val customChar = "#aHello #bWorld".color('#')
+// Result: "§aHello §bWorld"
+```
+
+### unColor()
+
+Remove all color codes from a string.
+
+<ResponseField name="return" type="String">
+  String with color codes removed.
+</ResponseField>
+
+```kotlin
+val plain = "§aColored §btext".unColor()
+// Result: "Colored text"
+```
+
+## ItemStack extensions
+
+### addText()
+
+Add display name and lore to an ItemStack with automatic color code conversion.
+
+<ParamField path="title" type="String?">
+  Display name for the item (nullable).
+</ParamField>
+
+<ParamField path="lore" type="MutableList<String>">
+  List of lore lines to add to the item.
+</ParamField>
+
+<ResponseField name="return" type="ItemStack">
+  Modified ItemStack with display name and lore.
+</ResponseField>
+
+```kotlin
+val item = ItemStack(Material.DIAMOND_SWORD)
+  .addText(
+    "&6Legendary Sword",
+    mutableListOf(
+      "&7A powerful weapon",
+      "&8Damage: +10",
+      "&8Forged in fire"
+    )
+  )
+```
+
+### allHide()
+
+Add all ItemFlag values to hide item attributes.
+
+<ResponseField name="return" type="ItemStack">
+  Modified ItemStack with all flags hidden.
+</ResponseField>
+
+```kotlin
+val item = ItemStack(Material.DIAMOND_SWORD)
+  .allHide()
+// Hides: enchantments, attributes, unbreakable, destroys, placed_on, potion_effects, dye
+```
+
+## Plugin access
+
+### plugin
+
+Lazy-initialized reference to the main plugin instance.
+
+<ResponseField name="plugin" type="Main">
+  The OyasaiUtilities plugin instance.
+</ResponseField>
+
+```kotlin
+import icu.oyasai.utilities.OyasaiUtilities
+
+val pluginInstance = OyasaiUtilities.plugin
+val logger = pluginInstance.logger
+```
+
+## Usage example
+
+Complete example using OyasaiUtilities in your plugin:
+
+```kotlin
+import icu.oyasai.utilities.OyasaiUtilities.color
+import icu.oyasai.utilities.OyasaiUtilities.addText
+import icu.oyasai.utilities.OyasaiUtilities.allHide
+import org.bukkit.Material
+import org.bukkit.inventory.ItemStack
+
+class MyPlugin : JavaPlugin() {
+    fun createCustomItem(): ItemStack {
+        return ItemStack(Material.DIAMOND_SWORD)
+            .addText(
+                "&6&lLegendary Sword",
+                mutableListOf(
+                    "&7A sword of immense power",
+                    "",
+                    "&eAbilities:",
+                    "&7• Lightning Strike",
+                    "&7• Fire Aspect III",
+                    "",
+                    "&8Forged by ancient smiths"
+                )
+            )
+            .allHide()
+    }
+    
+    fun sendColoredMessage(player: Player, message: String) {
+        player.sendMessage(message.color())
+    }
+}
+```
+
+## Dependencies
+
+To use OyasaiUtilities in your plugin:
+
+```kotlin
+// build.gradle.kts
+dependencies {
+    compileOnly(files("path/to/OyasaiUtilities.jar"))
+}
+```
+
+```yaml
+# plugin.yml
+depend:
+  - OyasaiUtilities
+```

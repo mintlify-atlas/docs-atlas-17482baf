@@ -1,0 +1,213 @@
+---
+title: Server configurations
+description: Nix-based server configuration API reference
+---
+
+API reference for creating and configuring Oyasai Minecraft servers using Nix.
+
+## oyasaiPurpur
+
+The `oyasaiPurpur` function creates a configured Purpur server package.
+
+### Parameters
+
+<ParamField path="name" type="string" required>
+  Server package name (e.g., "oyasai-minecraft-main").
+</ParamField>
+
+<ParamField path="version" type="string" required>
+  Minecraft version (e.g., "1.21.8").
+</ParamField>
+
+<ParamField path="plugins" type="list" default="[]">
+  List of plugins to include in the server.
+</ParamField>
+
+<ParamField path="directory" type="string" default="./server">
+  Working directory for the server.
+</ParamField>
+
+<ParamField path="extraJavaArgs" type="list" default="[]">
+  Additional JVM arguments.
+</ParamField>
+
+<ParamField path="passthru" type="attrs" default="{}">
+  Additional attributes to pass through (e.g., Docker image config).
+</ParamField>
+
+### Return value
+
+<ResponseField name="derivation" type="derivation">
+  A Nix derivation containing the configured Purpur server.
+  
+  The derivation includes:
+  - Executable server command
+  - All configured plugins
+  - Server configuration files
+  - Docker image builder (on Linux)
+</ResponseField>
+
+### Example: Basic server
+
+```nix
+oyasaiPurpur {
+  name = "my-minecraft-server";
+  version = "1.21.8";
+  plugins = with oyasai-plugin-registry.forVersion "1.21.8"; [
+    essentialsx
+    luckperms
+    vault
+  ];
+}
+```
+
+### Example: Production server
+
+```nix
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-main";
+  version = "1.21.8";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    # Core plugins
+    essentialsx
+    fastasyncworldedit
+    luckperms
+    plugmanx
+    protocollib
+    vault
+    nuvotifier
+    
+    # Custom plugins
+    vertex
+  ];
+  
+  passthru = lib.optionalAttrs stdenv.hostPlatform.isLinux {
+    docker = oyasaiDockerTools.buildLayeredImage {
+      inherit name;
+      config.Cmd = [ "${lib.getExe final}" ];
+    };
+  };
+}
+```
+
+### Example: Development server
+
+```nix
+oyasaiPurpur {
+  name = "dev-server";
+  version = "1.21.8";
+  directory = "./dev-server";
+  plugins = [];
+  extraJavaArgs = [
+    "-Xdebug"
+    "-Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005"
+  ];
+}
+```
+
+## Plugin selection
+
+### oyasai-plugin-registry
+
+Access plugins from the central registry:
+
+<ParamField path="version" type="string" required>
+  Minecraft version to get plugins for.
+</ParamField>
+
+<ResponseField name="plugins" type="attrset">
+  Available plugins for the specified version.
+</ResponseField>
+
+```nix
+with (oyasai-plugin-registry.forVersion "1.21.8"); [
+  essentialsx
+  luckperms
+  vault
+]
+```
+
+### Custom plugins
+
+Include your own plugins from the monorepo:
+
+```nix
+plugins = with oyasai-plugins; [
+  oyasaiutilities
+  oyasaiadmintools
+  oyasaipets
+];
+```
+
+### Mixed plugin sources
+
+```nix
+plugins = 
+  # Registry plugins
+  (with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    luckperms
+  ])
+  ++
+  # Custom plugins
+  (with oyasai-plugins; [
+    oyasaiutilities
+    vertex
+  ]);
+```
+
+## Docker integration
+
+### buildLayeredImage
+
+Create a Docker image for the server:
+
+```nix
+oyasaiDockerTools.buildLayeredImage {
+  name = "oyasai-minecraft";
+  tag = "latest";
+  config = {
+    Cmd = [ "${lib.getExe serverPackage}" ];
+    ExposedPorts = {
+      "25565/tcp" = {};
+    };
+    Env = [
+      "MEMORY=4G"
+    ];
+  };
+}
+```
+
+## Running servers
+
+### From Nix
+
+```bash
+# Run directly
+nix run .#oyasai-minecraft-main
+
+# Build and inspect
+nix build .#oyasai-minecraft-main
+./result/bin/oyasai-minecraft-main
+```
+
+### From Docker
+
+```bash
+# Build Docker image
+nix build .#oyasai-minecraft-main.docker
+docker load < result
+
+# Run container
+docker run -p 25565:25565 oyasai-minecraft-main
+```
+
+## Configuration files
+
+Server configurations are located in:
+- `packages/oyasai-minecraft-main.nix` - Production server
+- `packages/oyasai-minecraft-minimal.nix` - Development server
+- `packages/oyasai-minecraft-marzipan.nix` - Alternative config
+
+See [Server Configuration](/operations/server-configuration) for runtime configuration.

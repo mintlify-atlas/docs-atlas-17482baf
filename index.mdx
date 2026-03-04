@@ -1,97 +1,227 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: Oyasai Server Platform
+mode: custom
 ---
 
-## Setting up
+<div className="relative overflow-hidden dark:bg-[#0a0e1a] bg-white py-20">
+  <div className="absolute inset-0 dark:bg-gradient-to-b dark:from-purple-900/20 dark:to-transparent bg-gradient-to-b from-gray-50 to-transparent"></div>
+  <div className="relative max-w-7xl mx-auto px-6 lg:px-8">
+    <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold dark:text-gray-100 text-gray-900 mb-6">
+          Infrastructure for Oyasai Minecraft Server
+        </h1>
+        <p className="text-base sm:text-lg lg:text-xl dark:text-gray-400 text-gray-600 max-w-2xl mb-8">
+          Build, deploy, and manage Minecraft server infrastructure with Nix flakes, custom plugins, and automated CI/CD workflows.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a
+            href="/quickstart"
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#238636] text-white font-semibold hover:bg-[#2ea043] transition-colors no-underline"
+          >
+            Get started
+          </a>
+          <a
+            href="/architecture/overview"
+            className="inline-flex items-center px-6 py-3 rounded-lg border dark:border-white/30 border-gray-300 dark:bg-white/10 bg-gray-50 dark:text-white text-gray-900 font-semibold dark:hover:border-[#242b2c] hover:border-gray-400 transition-colors no-underline"
+          >
+            View architecture
+          </a>
+        </div>
+      </div>
+      <div className="hidden lg:block lg:col-span-5">
+        <div className="relative">
+          <div className="absolute inset-0 dark:bg-gradient-to-r dark:from-purple-600/20 dark:to-blue-600/20 bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl blur-3xl"></div>
+          <div className="relative dark:bg-[#1a1d27] bg-white p-8 rounded-2xl dark:border dark:border-[#27272a] border border-gray-200 shadow-xl">
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <div className="h-3 w-3 rounded-full bg-red-500"></div>
+                <div className="h-3 w-3 rounded-full bg-yellow-500"></div>
+                <div className="h-3 w-3 rounded-full bg-green-500"></div>
+              </div>
+              <div className="dark:bg-[#0f1117] bg-gray-50 p-4 rounded-lg font-mono text-sm">
+                <div className="dark:text-green-400 text-green-600">$ nix develop</div>
+                <div className="dark:text-gray-400 text-gray-600 mt-2">🔨 Building development environment...</div>
+                <div className="dark:text-blue-400 text-blue-600 mt-1">✓ Java 25, Gradle 9 ready</div>
+                <div className="dark:text-purple-400 text-purple-600 mt-1">✓ 10 plugins available</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-4">Quick start</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Get your development environment ready in minutes</p>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+  <Steps>
+    <Step title="Install Nix">
+      Install Nix package manager with flakes support:
+      
+      ```bash
+      curl -L https://nixos.org/nix/install | sh
+      mkdir -p ~/.config/nix
+      echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+      ```
+      
+      <Note>Windows users should install WSL first and run all commands inside WSL.</Note>
+    </Step>
 
-## Make it yours
+    <Step title="Clone and enter devshell">
+      Clone the repository and enter the development environment:
+      
+      ```bash
+      git clone https://github.com/Oyasaiserver/platform.git
+      cd platform
+      nix develop
+      ```
+      
+      The devshell includes Java 25, Gradle 9, and all required build tools.
+    </Step>
 
-Design a docs site that looks great and empowers your users.
+    <Step title="Build all plugins">
+      Build all Minecraft plugins in parallel:
+      
+      ```bash
+      gradle build --parallel
+      ```
+      
+      Built plugins will be available in `plugins/*/build/libs/`.
+    </Step>
 
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+    <Step title="Run a test server">
+      Launch a minimal test server with your plugins:
+      
+      ```bash
+      nix run .#oyasai-minecraft-minimal
+      ```
+      
+      The server will start on `localhost:25565` with all custom plugins loaded.
+    </Step>
+  </Steps>
+</div>
 
-## Create beautiful pages
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-4">Explore the platform</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Everything you need to build and deploy Minecraft infrastructure</p>
 
-Everything you need to create world-class documentation.
+  <CardGroup cols={2}>
+    <Card title="Setup & deployment" icon="server" href="/setup/prerequisites">
+      Configure development environment and deploy to production
+    </Card>
+    <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+      Learn about the monorepo structure and Nix flake system
+    </Card>
+    <Card title="Plugins" icon="plug" href="/plugins/overview">
+      Explore 10 custom Minecraft plugins built with Kotlin
+    </Card>
+    <Card title="Operations" icon="gears" href="/operations/server-configuration">
+      Manage servers, monitor performance, and configure backups
+    </Card>
+    <Card title="Development" icon="code" href="/development/plugin-development">
+      Build new plugins and contribute to the platform
+    </Card>
+    <Card title="API reference" icon="book" href="/api/oyasai-utilities">
+      Browse plugin APIs and server configuration modules
+    </Card>
+  </CardGroup>
+</div>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-4">Key features</h2>
+  <p className="text-base dark:text-gray-400 text-gray-600 mb-8">Modern infrastructure tools for Minecraft server management</p>
 
-## Need inspiration?
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="dark:bg-[#1a1d27] bg-gray-50 p-6 rounded-xl dark:border dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start space-x-4">
+        <div className="flex-shrink-0">
+          <div className="w-12 h-12 rounded-lg dark:bg-purple-600/20 bg-purple-100 flex items-center justify-center">
+            <svg className="w-6 h-6 dark:text-purple-400 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Nix-based infrastructure</h3>
+          <p className="dark:text-gray-400 text-gray-600 text-sm">Reproducible builds with Nix flakes, lockfiles, and declarative server configurations</p>
+        </div>
+      </div>
+    </div>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    <div className="dark:bg-[#1a1d27] bg-gray-50 p-6 rounded-xl dark:border dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start space-x-4">
+        <div className="flex-shrink-0">
+          <div className="w-12 h-12 rounded-lg dark:bg-blue-600/20 bg-blue-100 flex items-center justify-center">
+            <svg className="w-6 h-6 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Custom Kotlin plugins</h3>
+          <p className="dark:text-gray-400 text-gray-600 text-sm">10 production-ready plugins for admin tools, pets, profiles, and player utilities</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="dark:bg-[#1a1d27] bg-gray-50 p-6 rounded-xl dark:border dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start space-x-4">
+        <div className="flex-shrink-0">
+          <div className="w-12 h-12 rounded-lg dark:bg-green-600/20 bg-green-100 flex items-center justify-center">
+            <svg className="w-6 h-6 dark:text-green-400 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Automated CI/CD</h3>
+          <p className="dark:text-gray-400 text-gray-600 text-sm">Build validation with flake checks, parallel Gradle builds, and Docker image generation</p>
+        </div>
+      </div>
+    </div>
+
+    <div className="dark:bg-[#1a1d27] bg-gray-50 p-6 rounded-xl dark:border dark:border-[#27272a] border border-gray-200">
+      <div className="flex items-start space-x-4">
+        <div className="flex-shrink-0">
+          <div className="w-12 h-12 rounded-lg dark:bg-orange-600/20 bg-orange-100 flex items-center justify-center">
+            <svg className="w-6 h-6 dark:text-orange-400 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold dark:text-white text-gray-900 mb-2">Plugin registry</h3>
+          <p className="dark:text-gray-400 text-gray-600 text-sm">Version management for Purpur plugins including EssentialsX, Vault, and LuckPerms</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="dark:bg-gradient-to-r dark:from-purple-900/20 dark:to-blue-900/20 bg-gradient-to-r from-purple-50 to-blue-50 p-8 sm:p-12 rounded-2xl dark:border dark:border-purple-600/30 border border-purple-200">
+    <div className="max-w-3xl">
+      <h2 className="text-2xl sm:text-3xl font-bold dark:text-white text-gray-900 mb-4">Ready to start building?</h2>
+      <p className="text-base dark:text-gray-300 text-gray-700 mb-6">
+        Get your development environment set up and deploy your first Minecraft server with custom plugins.
+      </p>
+      <div className="flex flex-wrap gap-4">
+        <a
+          href="/quickstart"
+          className="inline-flex items-center px-6 py-3 rounded-lg bg-[#238636] text-white font-semibold hover:bg-[#2ea043] transition-colors no-underline"
+        >
+          Get started
+        </a>
+        <a
+          href="https://github.com/Oyasaiserver/platform"
+          className="inline-flex items-center px-6 py-3 rounded-lg dark:border-white/30 border-gray-300 dark:bg-white/10 bg-white dark:text-white text-gray-900 font-semibold dark:hover:border-[#242b2c] hover:border-gray-400 transition-colors no-underline"
+        >
+          View on GitHub →
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

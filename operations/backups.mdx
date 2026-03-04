@@ -1,0 +1,504 @@
+---
+title: 'Backups'
+description: 'Automated backup strategies for Minecraft world data and database'
+---
+
+## Overview
+
+Oyasai Server Platform implements automated backups using Restic for Minecraft world data and custom backup solutions for MariaDB databases. All backups are stored in Cloudflare R2 object storage.
+
+## Minecraft World Backups
+
+The production environment uses the `itzg/mc-backup` container for automated world backups:
+
+```typescript packages/cdktf/src/stacks/docker-stack.ts
+new Container(this, this.envAwareId("minecraft-backup-container"), {
+  name: "minecraft-main-backup",
+  dependsOn: [minecraftMainContainer],
+  image: images.minecraftBackup.imageId,
+  networksAdvanced: [network],
+  restart: "unless-stopped",
+  env: envs({
+    BACKUP_METHOD: "restic",
+    RESTIC_PASSWORD: this.secrets.RESTIC_PASSWORD,
+    AWS_ACCESS_KEY_ID: this.secrets.CLOUDFLARE_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: this.secrets.CLOUDFLARE_SECRET_ACCESS_KEY,
+    RESTIC_VERBOSE: true,
+    RESTIC_REPOSITORY: `s3:https://${this.secrets.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/production/minecraft-main-backup`,
+    RCON_HOST: "minecraft-main",
+    RCON_PASSWORD: this.secrets.RCON_PASSWORD,
+    EXCLUDES: "*.jar,cache,logs,*.tmp,bluemap",
+    BACKUP_INTERVAL: "6h",
+    PRUNE_RESTIC_RETENTION: "--keep-daily 7 --keep-weekly 4 --keep-monthly 3",
+  }),
+  volumes: [
+    {
+      hostPath: join(this.workdir, "minecraft-main"),
+      containerPath: "/data",
+      readOnly: true,
+    },
+  ],
+});
+```
+
+### Backup Configuration
+
+<ParamField path="BACKUP_METHOD" type="string" default="restic">
+  Backup tool to use (restic recommended for deduplication)
+</ParamField>
+
+<ParamField path="BACKUP_INTERVAL" type="string" default="6h">
+  Frequency of automatic backups (e.g., "6h", "12h", "24h")
+</ParamField>
+
+<ParamField path="RESTIC_REPOSITORY" type="string" required>
+  S3-compatible storage URL for backup destination
+</ParamField>
+
+<ParamField path="RESTIC_PASSWORD" type="string" required>
+  Password for encrypting backup repository
+</ParamField>
+
+<ParamField path="RCON_HOST" type="string" required>
+  Hostname of Minecraft server for save-all command
+</ParamField>
+
+<ParamField path="RCON_PASSWORD" type="string" required>
+  RCON password for server communication
+</ParamField>
+
+<ParamField path="EXCLUDES" type="string">
+  Comma-separated patterns for files to exclude from backups
+</ParamField>
+
+### Retention Policy
+
+Backups are automatically pruned according to retention rules:
+
+```typescript
+PRUNE_RESTIC_RETENTION: "--keep-daily 7 --keep-weekly 4 --keep-monthly 3"
+```
+
+<ResponseField name="Daily Backups" type="number">
+  Keep the last 7 daily backups
+</ResponseField>
+
+<ResponseField name="Weekly Backups" type="number">
+  Keep the last 4 weekly backups
+</ResponseField>
+
+<ResponseField name="Monthly Backups" type="number">
+  Keep the last 3 monthly backups
+</ResponseField>
+
+### Excluded Files
+
+The following files are excluded from backups to reduce size:
+
+- `*.jar` - Plugin JAR files (can be rebuilt)
+- `cache` - Temporary cache directories
+- `logs` - Server log files
+- `*.tmp` - Temporary files
+- `bluemap` - BlueMap rendered tiles (regenerated)
+
+<Note>
+  Excluding regeneratable data significantly reduces backup size and transfer time.
+</Note>
+
+## Database Backups
+
+MariaDB databases are backed up using `databack/mysql-backup`:
+
+```typescript packages/cdktf/src/stacks/docker-stack.ts
+new Container(this, this.envAwareId("mariadb-backup-container"), {
+  name: "mariadb-backup",
+  dependsOn: [mariadbContainer],
+  image: "databack/mysql-backup",
+  restart: "unless-stopped",
+  networksAdvanced: [network],
+  command: ["dump"],
+  env: envs({
+    DB_SERVER: "mariadb",
+    DB_USER: "root",
+    DB_PASS: this.secrets.MARIADB_PASSWORD,
+    DB_DUMP_FREQUENCY: 360,
+    DB_DUMP_TARGET: `s3://${this.secrets.R2_BUCKET_NAME}/mariadb-backup`,
+    AWS_ACCESS_KEY_ID: this.secrets.CLOUDFLARE_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: this.secrets.CLOUDFLARE_SECRET_ACCESS_KEY,
+    AWS_REGION: "auto",
+    AWS_ENDPOINT_URL: `https://${this.secrets.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    DB_DUMP_COMPRESSION: "gzip",
+    DB_DUMP_RETENTION: "14d",
+    DB_DEBUG: true,
+  }),
+});
+```
+
+### Database Backup Configuration
+
+<ParamField path="DB_SERVER" type="string" required>
+  Database server hostname (container name on Docker network)
+</ParamField>
+
+<ParamField path="DB_USER" type="string" required>
+  Database user with backup privileges
+</ParamField>
+
+<ParamField path="DB_PASS" type="string" required>
+  Database user password
+</ParamField>
+
+<ParamField path="DB_DUMP_FREQUENCY" type="number" default="360">
+  Backup frequency in minutes (360 = 6 hours)
+</ParamField>
+
+<ParamField path="DB_DUMP_TARGET" type="string" required>
+  S3 storage path for database backups
+</ParamField>
+
+<ParamField path="DB_DUMP_COMPRESSION" type="string" default="gzip">
+  Compression method for SQL dumps
+</ParamField>
+
+<ParamField path="DB_DUMP_RETENTION" type="string" default="14d">
+  How long to retain old backups (e.g., "14d", "30d")
+</ParamField>
+
+## Backup Storage
+
+All backups are stored in Cloudflare R2 object storage:
+
+### Storage Configuration
+
+<CodeGroup>
+```typescript Minecraft Backups
+RESTIC_REPOSITORY: `s3:https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/production/minecraft-main-backup`
+```
+
+```typescript Database Backups
+DB_DUMP_TARGET: `s3://${R2_BUCKET_NAME}/mariadb-backup`
+AWS_ENDPOINT_URL: `https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`
+```
+</CodeGroup>
+
+### R2 Credentials
+
+Authentication uses AWS S3-compatible credentials:
+
+<ParamField path="AWS_ACCESS_KEY_ID" type="string" required>
+  Cloudflare R2 access key ID
+</ParamField>
+
+<ParamField path="AWS_SECRET_ACCESS_KEY" type="string" required>
+  Cloudflare R2 secret access key
+</ParamField>
+
+<ParamField path="AWS_REGION" type="string" default="auto">
+  Region setting (use "auto" for R2)
+</ParamField>
+
+## Backup Image Configuration
+
+The mc-backup Docker image is defined in Nix:
+
+```nix packages/mc-backup.nix
+{
+  oyasaiDockerTools,
+  dockerTools,
+  stdenv,
+}:
+let
+  inherit (stdenv.hostPlatform) system;
+  name = "mc-backup";
+  imageName = "itzg/mc-backup";
+  hashes = {
+    "x86_64-linux" = "sha256-3g2ayNkXxJjaXuC8t7EMDTI9nMH2did75gB/nmNH2Aw=";
+    "aarch64-linux" = "sha256-mzKgbyhuH0pMmzFuNKC/ltsDLzx0kfypTEY7XbVPPes=";
+  };
+in
+oyasaiDockerTools.buildImage {
+  inherit name;
+  fromImage = dockerTools.pullImage {
+    inherit imageName;
+    imageDigest = "sha256:81e68ecbf7c3452079d08fc7058208cdf493633b4e7431d79d56bdb910c4dfea";
+    hash = hashes.${system};
+    finalImageName = imageName;
+    finalImageTag = "latest";
+  };
+  config.Entrypoint = [ "/usr/bin/backup" ];
+  config.Cmd = [ "loop" ];
+  platforms = builtins.attrNames hashes;
+}
+```
+
+Supported platforms:
+- `x86_64-linux` (Intel/AMD)
+- `aarch64-linux` (ARM64)
+
+## Backup Process
+
+The automated backup workflow:
+
+<Steps>
+  <Step title="Trigger backup">
+    Timer reaches configured interval (6 hours by default)
+  </Step>
+  
+  <Step title="Issue save-all">
+    Backup container connects via RCON and issues `save-all` command
+  </Step>
+  
+  <Step title="Wait for save">
+    Server completes world save to disk
+  </Step>
+  
+  <Step title="Create snapshot">
+    Restic creates deduplicated snapshot of changed files
+  </Step>
+  
+  <Step title="Upload to R2">
+    Encrypted backup data uploads to Cloudflare R2
+  </Step>
+  
+  <Step title="Prune old backups">
+    Apply retention policy to remove expired backups
+  </Step>
+</Steps>
+
+## Manual Backup Operations
+
+### Trigger Manual Backup
+
+```bash
+# Execute backup immediately
+docker exec minecraft-main-backup backup now
+
+# View backup status
+docker logs minecraft-main-backup --tail 50
+```
+
+### List Backups
+
+```bash
+# List all snapshots
+docker exec minecraft-main-backup restic snapshots
+
+# Show backup statistics
+docker exec minecraft-main-backup restic stats
+```
+
+### Restore from Backup
+
+<Warning>
+  Always stop the Minecraft server before restoring to prevent data corruption.
+</Warning>
+
+```bash
+# Stop server
+docker stop minecraft-main
+
+# List available snapshots
+docker exec minecraft-main-backup restic snapshots
+
+# Restore latest snapshot
+docker exec minecraft-main-backup restic restore latest --target /data
+
+# Restore specific snapshot
+docker exec minecraft-main-backup restic restore <snapshot-id> --target /data
+
+# Start server
+docker start minecraft-main
+```
+
+## Database Restore
+
+```bash
+# Stop database-dependent services
+docker stop minecraft-main
+
+# Download backup from R2
+aws s3 cp s3://${R2_BUCKET_NAME}/mariadb-backup/backup-YYYY-MM-DD.sql.gz . \
+  --endpoint-url https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com
+
+# Restore to database
+gunzip < backup-YYYY-MM-DD.sql.gz | docker exec -i mariadb mysql -p
+
+# Restart services
+docker start minecraft-main
+```
+
+## Backup Monitoring
+
+### Check Backup Status
+
+```bash
+# View backup container logs
+docker logs minecraft-main-backup -f
+
+# Check last backup time
+docker exec minecraft-main-backup restic snapshots --latest 1
+
+# Verify backup integrity
+docker exec minecraft-main-backup restic check
+```
+
+### Backup Metrics
+
+<CodeGroup>
+```bash Repository Size
+# Check repository size and file count
+docker exec minecraft-main-backup restic stats
+```
+
+```bash Backup Performance
+# View backup duration
+docker logs minecraft-main-backup | grep "duration"
+
+# Check transfer speed
+docker logs minecraft-main-backup | grep "processed"
+```
+</CodeGroup>
+
+## Volume Configuration
+
+Backup containers mount server data as read-only:
+
+```typescript
+volumes: [
+  {
+    hostPath: join(this.workdir, "minecraft-main"),
+    containerPath: "/data",
+    readOnly: true,  // Prevent accidental modifications
+  },
+]
+```
+
+This ensures:
+- No risk of backup process corrupting live data
+- Clear separation between read and write operations
+- Safety during concurrent server operation
+
+## Environment-Specific Backups
+
+<Tabs>
+  <Tab title="Production">
+    - **Minecraft**: Every 6 hours, retained 7/4/3 (daily/weekly/monthly)
+    - **Database**: Every 6 hours, retained 14 days
+    - **Storage**: Cloudflare R2 production bucket
+  </Tab>
+  
+  <Tab title="Development">
+    - **Status**: Backup restoration for testing
+    - **Purpose**: Validate backup integrity
+    - **Storage**: Separate development bucket
+  </Tab>
+  
+  <Tab title="Local">
+    - **Status**: No automated backups
+    - **Purpose**: Development and testing only
+    - **Backup**: Manual snapshots as needed
+  </Tab>
+</Tabs>
+
+## Backup Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Test Restores" icon="flask-vial">
+    Regularly test backup restoration to verify integrity and procedures
+  </Card>
+  
+  <Card title="Monitor Storage" icon="database">
+    Track R2 storage usage to manage costs and capacity
+  </Card>
+  
+  <Card title="Verify Encryption" icon="lock">
+    Ensure RESTIC_PASSWORD is securely stored and backed up separately
+  </Card>
+  
+  <Card title="Document Recovery" icon="book">
+    Maintain updated disaster recovery documentation
+  </Card>
+</CardGroup>
+
+## Disaster Recovery
+
+### Full Server Restore
+
+<Steps>
+  <Step title="Provision new server">
+    Deploy fresh Oyasai Server Platform infrastructure
+  </Step>
+  
+  <Step title="Configure R2 access">
+    Set up Cloudflare R2 credentials for backup access
+  </Step>
+  
+  <Step title="Restore world data">
+    Use Restic to restore latest Minecraft world snapshot
+  </Step>
+  
+  <Step title="Restore database">
+    Import latest MariaDB dump from R2 storage
+  </Step>
+  
+  <Step title="Verify integrity">
+    Start server and verify world and player data
+  </Step>
+  
+  <Step title="Resume backups">
+    Ensure backup containers are running and scheduled
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Backup fails with authentication error" icon="key">
+    Verify R2 credentials are correct:
+    ```bash
+    docker exec minecraft-main-backup env | grep AWS
+    ```
+    
+    Test R2 connectivity:
+    ```bash
+    docker exec minecraft-main-backup restic snapshots
+    ```
+  </Accordion>
+  
+  <Accordion title="Backup container keeps restarting" icon="rotate-exclamation">
+    Check for RCON connectivity:
+    ```bash
+    docker exec minecraft-main-backup nc -zv minecraft-main 25575
+    ```
+    
+    Verify RCON password:
+    ```bash
+    docker logs minecraft-main-backup | grep -i rcon
+    ```
+  </Accordion>
+  
+  <Accordion title="Backups consuming too much storage" icon="hard-drive">
+    Review exclusion patterns:
+    ```bash
+    docker inspect minecraft-main-backup | jq '.[0].Config.Env' | grep EXCLUDES
+    ```
+    
+    Adjust retention policy:
+    ```bash
+    # Reduce retention in docker-stack.ts
+    PRUNE_RESTIC_RETENTION: "--keep-daily 3 --keep-weekly 2 --keep-monthly 1"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Monitoring" icon="chart-line" href="/operations/monitoring">
+    Set up monitoring for backup health and status
+  </Card>
+  
+  <Card title="Server Configuration" icon="gear" href="/operations/server-configuration">
+    Review server configuration for backup optimization
+  </Card>
+</CardGroup>

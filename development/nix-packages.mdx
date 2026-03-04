@@ -1,0 +1,476 @@
+---
+title: Nix Packages
+description: Creating and managing server packages with Nix on Oyasai Server Platform
+---
+
+## Overview
+
+Oyasai Server Platform uses Nix flakes for reproducible server configurations, plugin management, and infrastructure deployment. Every server configuration is a Nix package that can be built and run consistently across environments.
+
+## Why Nix?
+
+- **Reproducibility**: Identical builds on any machine
+- **Declarative**: Server configuration as code
+- **Isolation**: No dependency conflicts
+- **Efficiency**: Shared dependencies via Nix store
+- **Version Control**: Track server configurations in Git
+
+## Flake Structure
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+    gradle2nix = { url = "github:oyasaiserver/gradle2nix?ref=v2"; };
+    package-lock2nix = { url = "github:anteriorcore/package-lock2nix"; };
+    # ...
+  };
+  outputs = { ... }: {
+    # Packages, devshells, checks, etc.
+  };
+}
+```
+
+See `flake.nix` for the complete configuration.
+
+## Oyasai Scope
+
+All Oyasai packages are organized in a custom scope defined in `nix/oyasai-scope.nix`.
+
+### Core Components
+
+- **JDK**: Temurin JDK 25
+- **JRE**: Temurin JRE 25
+- **Gradle**: Gradle 9
+- **Node.js**: v24
+- **Terraform**: Infrastructure as code
+- **gradle2nix**: Gradle to Nix converter
+- **oyasaiPurpur**: Purpur server builder function
+- **plugins**: All built plugins
+- **plugins-batch**: Batch build of all plugins
+
+See `nix/oyasai-scope.nix:79-114`.
+
+## Creating Server Packages
+
+### Basic Server Configuration
+
+Create a file in `packages/` directory:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-minimal";
+  version = "1.21.8";
+
+  directory = "local";
+
+  # See packages/oyasai-plugins-registry/data.json
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    fastasyncworldedit
+    plugmanx
+  ];
+}
+```
+
+Example from `packages/oyasai-minecraft-minimal.nix:1-16`.
+
+### Server Configuration Options
+
+#### name
+The package name (required):
+```nix
+name = "oyasai-minecraft-custom";
+```
+
+#### version
+Minecraft version (required):
+```nix
+version = "1.21.8";
+```
+
+Supported versions are defined in `nix/oyasai-purpur.nix:22-27`.
+
+#### directory
+Server working directory (default: `.`):
+```nix
+directory = "local";  # Server runs in ./local/
+```
+
+#### port
+Server port (default: `25565`):
+```nix
+port = 25566;
+```
+
+#### plugins
+List of plugin derivations:
+```nix
+plugins = [
+  plugin1
+  plugin2
+];
+```
+
+#### cleanPlugins
+Clean plugins directory on startup (default: `true`):
+```nix
+cleanPlugins = false;  # Keep existing plugins
+```
+
+#### passthru
+Additional attributes to pass through:
+```nix
+passthru = {
+  meta = {
+    description = "Custom server";
+  };
+};
+```
+
+## Using Plugins
+
+### Platform Plugins
+
+Access built plugins from the scope:
+
+```nix
+{ oyasaiPurpur }:
+let
+  # Import from oyasai scope
+  oyasaiutilities = oyasaiScope.plugins.oyasaiutilities;
+  dynamicprofile = oyasaiScope.plugins.dynamicprofile;
+in
+oyasaiPurpur {
+  name = "my-server";
+  version = "1.21.8";
+  directory = "server";
+  plugins = [
+    oyasaiutilities
+    dynamicprofile
+  ];
+}
+```
+
+Available plugins (lowercase names):
+- `oyasaiutilities`
+- `oyasaipets`
+- `oyasaiadmintools`
+- `dynamicprofile`
+- `entitypose`
+- `painttools`
+- `sociallikes3`
+- `socialvotes`
+- `tpswitch`
+- `vertex`
+
+See `nix/oyasai-scope.nix:106-114` for plugin naming.
+
+### External Plugins
+
+Use the `oyasai-plugin-registry`:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "server-with-external";
+  version = "1.21.8";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx          # EssentialsX
+    fastasyncworldedit   # WorldEdit async
+    vault                # Economy API
+    luckperms            # Permissions
+    plugmanx             # Plugin manager
+  ];
+}
+```
+
+### Custom Plugin JARs
+
+Include custom JAR files:
+
+```nix
+{ oyasaiPurpur, pkgs }:
+let
+  customPlugin = pkgs.fetchurl {
+    url = "https://example.com/plugin.jar";
+    sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+  };
+in
+oyasaiPurpur {
+  name = "custom-server";
+  version = "1.21.8";
+  plugins = [ customPlugin ];
+}
+```
+
+## Registering Packages
+
+### 1. Create Package File
+
+Create your server configuration in `packages/`:
+
+```bash
+nano packages/oyasai-minecraft-myserver.nix
+```
+
+### 2. Register in Scope
+
+Packages in `packages/` are automatically discovered via:
+
+```nix
+lib.packagesFromDirectoryRecursive {
+  inherit callPackage;
+  directory = ../packages;
+}
+```
+
+See `nix/oyasai-scope.nix:116-119`.
+
+### 3. Export as Package
+
+Add to the exports in `nix/oyasai-scope.nix`:
+
+```nix
+packages = lib.filterAttrs (_: availableOnSystem) {
+  inherit (oyasaiScope)
+    oyasai-minecraft-main
+    oyasai-minecraft-marzipan
+    oyasai-minecraft-minimal
+    oyasai-minecraft-myserver  # Add your package
+    ;
+};
+```
+
+See `nix/oyasai-scope.nix:126-136`.
+
+<Note>
+Keep the package list sorted alphabetically (indicated by `# keep-sorted start/end` comments).
+</Note>
+
+## Building and Running
+
+### Build Package
+
+```bash
+nix build .#oyasai-minecraft-minimal
+```
+
+Output will be in `./result/`.
+
+### Run Server
+
+```bash
+nix run .#oyasai-minecraft-minimal
+```
+
+The server will:
+1. Create the configured directory
+2. Copy plugins to `plugins/`
+3. Accept EULA automatically
+4. Start Purpur server
+
+### Run with Custom Options
+
+```bash
+nix run .#oyasai-minecraft-minimal -- --help
+```
+
+Pass JVM options:
+
+```bash
+nix run .#oyasai-minecraft-minimal -- -Xmx4G -Xms4G
+```
+
+## Development Workflow
+
+### 1. Create Test Configuration
+
+Edit `packages/oyasai-minecraft-minimal.nix` for testing:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+let
+  # Import your custom plugins from scope
+  inherit (oyasaiScope.plugins) oyasaiutilities oyasaipets;
+in
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-minimal";
+  version = "1.21.8";
+  directory = "local";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    fastasyncworldedit
+  ] ++ [
+    oyasaiutilities  # Your custom plugin
+    oyasaipets       # Another custom plugin
+  ];
+}
+```
+
+<Tip>
+The `oyasai-minecraft-minimal` package is designed for local development. Feel free to modify it for your needs.
+</Tip>
+
+### 2. Build and Test
+
+```bash
+nix build .#oyasai-minecraft-minimal
+nix run .#oyasai-minecraft-minimal
+```
+
+### 3. Iterate
+
+1. Make changes to plugin code
+2. Rebuild plugins: `gradle build --parallel`
+3. Regenerate if needed: `gradle2nix`
+4. Rebuild server: `nix build .#oyasai-minecraft-minimal`
+5. Test: `nix run .#oyasai-minecraft-minimal`
+
+## The oyasaiPurpur Function
+
+The `oyasaiPurpur` function is defined in `nix/oyasai-purpur.nix`.
+
+### Function Signature
+
+```nix
+{
+  name,              # Package name (required)
+  version,           # Minecraft version (required)
+  plugins,           # List of plugin derivations (required)
+  directory ? ".",   # Server directory
+  port ? 25565,      # Server port
+  passthru ? { },    # Additional attributes
+  cleanPlugins ? true, # Clean plugins on startup
+}
+```
+
+See `nix/oyasai-purpur.nix:11-19`.
+
+### Version Support
+
+Supported Minecraft versions:
+
+```nix
+versions = {
+  "1.21.8" = {
+    build = 2497;
+    hash = "sha256-3XsifyVVYBw5zsCR32eCdfCoH6ftaM6VTsSSS7RXXEY=";
+  };
+};
+```
+
+See `nix/oyasai-purpur.nix:22-27`.
+
+### Server Setup
+
+The function creates a setup script that:
+1. Accepts the EULA
+2. Creates `plugins/` directory
+3. Optionally cleans existing plugins
+4. Copies plugin JARs
+
+See `nix/oyasai-purpur.nix:28-45`.
+
+### Wrapper
+
+The server is wrapped with:
+- Working directory setup
+- Plugin installation
+- JRE execution with server JAR
+- Custom port configuration
+
+See `nix/oyasai-purpur.nix:67-71`.
+
+## Advanced Patterns
+
+### Multi-Environment Configs
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+let
+  commonPlugins = with (oyasai-plugin-registry.forVersion "1.21.8"); [
+    essentialsx
+    vault
+  ];
+  
+  devPlugins = with (oyasai-plugin-registry.forVersion "1.21.8"); [
+    plugmanx
+    fastasyncworldedit
+  ];
+in
+{
+  production = oyasaiPurpur {
+    name = "oyasai-prod";
+    version = "1.21.8";
+    directory = "prod";
+    plugins = commonPlugins;
+  };
+  
+  development = oyasaiPurpur {
+    name = "oyasai-dev";
+    version = "1.21.8";
+    directory = "dev";
+    plugins = commonPlugins ++ devPlugins;
+  };
+}
+```
+
+### Conditional Plugins
+
+```nix
+{ oyasaiPurpur, lib }:
+let
+  enableDebug = true;
+  debugPlugins = lib.optionals enableDebug [
+    plugmanx
+  ];
+in
+oyasaiPurpur {
+  name = "conditional-server";
+  version = "1.21.8";
+  plugins = basePlugins ++ debugPlugins;
+}
+```
+
+## Checks and CI
+
+All packages are automatically added to checks:
+
+```nix
+checks = lib.concatMapAttrs (k: v: 
+  lib.optionalAttrs (availableOnSystem v) { 
+    "build-${k}" = v; 
+  }
+) (lib.filterAttrs (_: lib.isDerivation) (oyasaiScope // oyasaiScope.plugins));
+```
+
+See `nix/oyasai-scope.nix:137-139`.
+
+Run all checks:
+
+```bash
+nix flake check -L
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin Development" icon="puzzle-piece" href="/development/plugin-development">
+    Build plugins to use in your server packages
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Test your server configurations locally
+  </Card>
+  <Card title="Gradle Workflow" icon="hammer" href="/development/gradle-workflow">
+    Manage dependencies and builds
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/development/contributing">
+    Submit your server configurations
+  </Card>
+</CardGroup>

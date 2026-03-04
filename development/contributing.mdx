@@ -1,0 +1,418 @@
+---
+title: Contributing
+description: Guidelines for contributing to the Oyasai Server Platform
+---
+
+## Welcome
+
+Thank you for your interest in contributing to the Oyasai Server Platform! This guide will help you get started with contributing to our monorepo that manages plugins, infrastructure, and web applications for the Oyasai Minecraft server.
+
+## Development Environment Setup
+
+<Warning>
+Windows users must install [WSL](https://learn.microsoft.com/en-us/windows/wsl/install). All development work must be done inside WSL.
+</Warning>
+
+### Installing Nix
+
+1. Install Nix from [nixos.org](https://nixos.org/download/). Multi-user installation is recommended, but single-user also works:
+
+```bash
+sh <(curl -L https://nixos.org/nix/install) --daemon
+```
+
+2. After installation, restart your terminal.
+
+3. Enable experimental features by running:
+
+```bash
+mkdir -p ~/.config/nix && echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+```
+
+4. Verify the installation by running in the repository:
+
+```bash
+nix flake show
+```
+
+If there are no errors, the installation was successful.
+
+5. Enter the development shell:
+
+```bash
+nix develop
+```
+
+This development shell (devshell) includes all necessary tools: Java, Gradle, Node.js, Terraform, and more.
+
+See `CONTRIBUTING.md:6-27`.
+
+## Code Standards
+
+### Formatting
+
+Unformatted code will not be accepted. To format your code, run:
+
+```bash
+nix fmt
+```
+
+This command formats:
+- Nix files (`.nix`)
+- Kotlin files (`.kt`) 
+- Configuration files
+- Other project files
+
+<Note>
+Always run `nix fmt` before committing your changes.
+</Note>
+
+See `CONTRIBUTING.md:29-37`.
+
+### Pull Request Conventions
+
+Pull request titles must follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+**Format**: `<type>(<scope>): <description>`
+
+**Types**:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `perf`: Performance improvements
+
+**Examples**:
+```
+feat(plugins): add new teleportation command to OyasaiUtilities
+fix(dynamicprofile): resolve player stats loading error
+docs(readme): update installation instructions
+refactor(gradle): simplify build configuration
+```
+
+See `CONTRIBUTING.md:39-42`.
+
+## Testing
+
+### Running Tests Locally
+
+The CI builds all packages and runs tests (if they exist). To run the same checks locally:
+
+```bash
+nix flake check -L
+```
+
+The `-L` flag shows build logs for debugging.
+
+See `CONTRIBUTING.md:44-50`.
+
+### Plugin Testing
+
+For testing plugins during development, see the [Testing](/development/testing) guide.
+
+## Local Development
+
+### Purpur Server Development
+
+Oyasai Server uses [Purpur](https://purpurmc.org). You can download and run your own local server, or use the platform's existing infrastructure to create a Purpur server with any configuration.
+
+#### Creating a Test Server
+
+1. Reference the minimal example at `packages/oyasai-minecraft-minimal.nix`:
+
+```nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-minimal";
+  version = "1.21.8";
+  directory = "local";
+
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    essentialsx
+    fastasyncworldedit
+    plugmanx
+  ];
+}
+```
+
+2. Create your own configuration file or edit the existing `packages/oyasai-minecraft-minimal.nix` (recommended for testing).
+
+3. Stage the file:
+
+```bash
+git add packages/your-config.nix
+```
+
+4. Add your configuration to `nix/oyasai-scope.nix` where other entries are located (search for `oyasai-minecraft-minimal` to find the right spot).
+
+5. Run your server:
+
+```bash
+nix run .#oyasai-minecraft-<name>
+```
+
+The server will start in the directory specified by the `directory` parameter.
+
+See `CONTRIBUTING.md:52-69`.
+
+### Plugin Development
+
+The devshell includes all necessary tools for plugin development.
+
+#### Build All Plugins
+
+From the repository root:
+
+```bash
+gradle build --parallel
+```
+
+#### Build a Specific Plugin
+
+```bash
+gradle :plugins:<name>:build
+```
+
+For example:
+
+```bash
+gradle :plugins:OyasaiUtilities:build
+```
+
+#### Updating Dependencies
+
+If you modify dependencies in any `build.gradle.kts` file, you must regenerate `gradle.lock`:
+
+```bash
+gradle2nix
+```
+
+<Warning>
+Always run `gradle2nix` after changing dependencies. The CI will fail if `gradle.lock` is out of sync.
+</Warning>
+
+See `CONTRIBUTING.md:71-89`.
+
+## Code Review Process
+
+Reviewers are automatically assigned based on [CODEOWNERS](https://github.com/oyasaiserver/platform/blob/master/CODEOWNERS).
+
+**Merge Requirements**:
+- 1 approval required for merge
+- All CI checks must pass
+- Code must be formatted (`nix fmt`)
+- Conventional Commits title format
+
+See `CONTRIBUTING.md:91-94`.
+
+## Contribution Workflow
+
+### 1. Fork and Clone
+
+```bash
+git clone https://github.com/your-username/platform.git
+cd platform
+```
+
+### 2. Create a Branch
+
+```bash
+git checkout -b feat/my-new-feature
+```
+
+Use a descriptive branch name that matches your PR title type:
+- `feat/*` for features
+- `fix/*` for bug fixes
+- `docs/*` for documentation
+- `refactor/*` for refactoring
+
+### 3. Set Up Development Environment
+
+```bash
+nix develop
+```
+
+### 4. Make Your Changes
+
+Edit code, add features, fix bugs, etc.
+
+### 5. Format Your Code
+
+```bash
+nix fmt
+```
+
+### 6. Test Your Changes
+
+```bash
+nix flake check -L
+```
+
+For plugin changes, also test locally:
+
+```bash
+gradle build --parallel
+nix run .#oyasai-minecraft-minimal
+```
+
+### 7. Commit Your Changes
+
+Use conventional commit messages:
+
+```bash
+git add .
+git commit -m "feat(plugins): add new command to OyasaiUtilities"
+```
+
+### 8. Push and Create PR
+
+```bash
+git push origin feat/my-new-feature
+```
+
+Create a pull request on GitHub with:
+- Conventional Commits title
+- Clear description of changes
+- References to related issues
+
+## Common Contribution Types
+
+### Adding a New Plugin
+
+1. Create plugin directory structure:
+   ```bash
+   mkdir -p plugins/MyPlugin/src/main/kotlin/com/oyasai/myplugin
+   mkdir -p plugins/MyPlugin/src/main/resources
+   ```
+
+2. Create `build.gradle.kts`:
+   ```kotlin
+   dependencies {
+     compileOnly(libs.purpur.api)
+   }
+   ```
+
+3. Create `plugin.yml` and plugin code
+
+4. Build and test:
+   ```bash
+   gradle :plugins:MyPlugin:build
+   ```
+
+5. Update dependencies if needed:
+   ```bash
+   gradle2nix
+   ```
+
+See [Plugin Development](/development/plugin-development) for details.
+
+### Modifying Existing Plugin
+
+1. Make your changes to the plugin code
+
+2. Build the plugin:
+   ```bash
+   gradle :plugins:PluginName:build
+   ```
+
+3. Test locally with a server configuration
+
+4. Format and check:
+   ```bash
+   nix fmt
+   nix flake check -L
+   ```
+
+### Updating Nix Configuration
+
+1. Edit Nix files in `nix/` or `packages/`
+
+2. Verify syntax:
+   ```bash
+   nix flake show
+   ```
+
+3. Test builds:
+   ```bash
+   nix build .#package-name
+   ```
+
+4. Format:
+   ```bash
+   nix fmt
+   ```
+
+### Documentation Changes
+
+1. Edit documentation files (`.md` or `.mdx`)
+
+2. Format:
+   ```bash
+   nix fmt
+   ```
+
+3. Preview if applicable
+
+4. Commit with `docs:` prefix:
+   ```bash
+   git commit -m "docs(contributing): update setup instructions"
+   ```
+
+## Getting Help
+
+If you need assistance:
+
+1. Check existing documentation in the repository
+2. Review similar merged pull requests
+3. Ask in discussions or issues
+4. Contact the maintainers listed in CODEOWNERS
+
+## Project Structure Reference
+
+```
+platform/
+├── apps/                    # Web applications
+├── nix/                     # Nix configuration files
+│   ├── devshells.nix       # Development environment
+│   ├── oyasai-scope.nix    # Package scope definition
+│   ├── oyasai-purpur.nix   # Purpur server builder
+│   └── treefmt.nix         # Formatter configuration
+├── packages/               # Server configurations
+│   ├── oyasai-minecraft-minimal.nix
+│   ├── oyasai-minecraft-main.nix
+│   └── ...
+├── plugins/                # All Minecraft plugins
+│   ├── OyasaiUtilities/
+│   ├── DynamicProfile/
+│   └── ...
+├── build.gradle.kts        # Root Gradle configuration
+├── settings.gradle.kts     # Gradle project structure
+├── gradle.lock            # Nix dependency lockfile
+├── flake.nix              # Nix flake definition
+├── CONTRIBUTING.md        # This guide (original)
+└── CODEOWNERS             # Code review assignments
+```
+
+## Additional Resources
+
+<CardGroup cols={2}>
+  <Card title="Plugin Development" icon="puzzle-piece" href="/development/plugin-development">
+    Learn how to create and modify plugins
+  </Card>
+  <Card title="Gradle Workflow" icon="hammer" href="/development/gradle-workflow">
+    Understanding the build system
+  </Card>
+  <Card title="Nix Packages" icon="box" href="/development/nix-packages">
+    Creating server configurations
+  </Card>
+  <Card title="Testing" icon="vial" href="/development/testing">
+    Testing your changes locally
+  </Card>
+</CardGroup>
+
+## Thank You
+
+Your contributions help make Oyasai Server Platform better for everyone. We appreciate your time and effort!

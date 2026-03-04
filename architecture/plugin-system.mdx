@@ -1,0 +1,681 @@
+---
+title: Plugin System
+description: Complete guide to developing, building, and deploying Minecraft plugins
+---
+
+The Oyasai Server Platform uses a sophisticated plugin system built on Gradle, Kotlin, and Nix. This document covers plugin development, the build process, and integration with the server.
+
+## Plugin Architecture
+
+Plugins are:
+- **Kotlin-based**: Written in Kotlin 2.3.0 for modern JVM development
+- **Gradle-managed**: Multi-project Gradle build with shared configuration
+- **Nix-packaged**: Reproducible builds via gradle2nix
+- **Purpur-compatible**: Target Purpur 1.21.8 API
+
+## Plugin Structure
+
+Each plugin follows a standard layout:
+
+```
+plugins/PluginName/
+├── build.gradle.kts          # Plugin-specific dependencies
+└── src/
+    └── main/
+        ├── kotlin/           # Kotlin source code
+        │   └── com/oyasai/pluginname/
+        │       └── PluginNamePlugin.kt
+        └── resources/
+            └── plugin.yml    # Plugin metadata
+```
+
+### plugin.yml
+
+The plugin descriptor defines metadata and entry points:
+
+```yaml
+name: PluginName
+version: ${version}
+main: com.oyasai.pluginname.PluginNamePlugin
+api-version: '1.21'
+author: Oyasai Team
+description: Plugin description
+
+commands:
+  commandname:
+    description: Command description
+    usage: /<command> [args]
+    permission: pluginname.command
+
+permissions:
+  pluginname.command:
+    description: Permission description
+    default: op
+```
+
+<Note>
+  The `${version}` placeholder is automatically expanded during build from the project version property.
+</Note>
+
+## Build Configuration
+
+The root `build.gradle.kts` applies common configuration to all plugins:
+
+```kotlin
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+buildscript {
+  dependencies {
+    classpath(libs.kotlin.plugin)
+    classpath(libs.shadow.plugin)
+  }
+  repositories { mavenCentral() }
+}
+
+allprojects {
+  repositories {
+    mavenCentral()
+    maven("https://repo.purpurmc.org/snapshots")
+    maven("https://nexus.frengor.com/repository/public/")
+    maven("https://nexus.scarsz.me/content/groups/public/")
+  }
+}
+
+subprojects {
+  if (!project.path.startsWith(":plugins:")) {
+    return@subprojects
+  }
+  
+  apply(plugin = "org.jetbrains.kotlin.jvm")
+  apply(plugin = "com.gradleup.shadow")
+  apply(plugin = "java-library")
+  
+  afterEvaluate {
+    tasks.withType<Jar>().configureEach {
+      if (name == "jar") {
+        enabled = false
+      }
+    }
+    
+    tasks.withType<ShadowJar>().configureEach {
+      archiveBaseName = project.name
+      archiveClassifier = ""
+      duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    
+    tasks.withType<ProcessResources>().configureEach {
+      val version: String by project
+      val properties = mapOf("version" to version)
+      inputs.properties(properties)
+      filteringCharset = Charsets.UTF_8.name()
+      filesMatching("plugin.yml") { expand(properties) }
+    }
+    
+    tasks.named("build") { dependsOn("shadowJar") }
+  }
+}
+```
+
+### Configuration Highlights
+
+<AccordionGroup>
+  <Accordion title="Automatic Plugin Detection">
+    Only subprojects under `:plugins:` have plugin configuration applied:
+    
+    ```kotlin
+    if (!project.path.startsWith(":plugins:")) {
+      return@subprojects
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Shadow JAR Production">
+    All plugins produce uber JARs with dependencies shaded:
+    
+    ```kotlin
+    tasks.withType<ShadowJar>().configureEach {
+      archiveBaseName = project.name
+      archiveClassifier = ""
+      duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Plugin.yml Processing">
+    The `plugin.yml` file has version properties expanded at build time:
+    
+    ```kotlin
+    tasks.withType<ProcessResources>().configureEach {
+      val version: String by project
+      filesMatching("plugin.yml") { expand(mapOf("version" to version)) }
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Regular JAR Disabled">
+    Only shadow JARs are produced to avoid confusion:
+    
+    ```kotlin
+    tasks.withType<Jar>().configureEach {
+      if (name == "jar") {
+        enabled = false
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Dependency Management
+
+Dependencies are managed via the version catalog in `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+kotlin = "2.3.0"
+purpur-api = "1.21.8-R0.1-SNAPSHOT"
+vault = "1.7.1"
+luckperms = "5.5"
+placeholderapi = "2.11.6"
+
+[libraries]
+purpur-api = { module = "org.purpurmc.purpur:purpur-api", version.ref = "purpur-api" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+vault-api = { module = "com.github.MilkBowl:VaultAPI", version.ref = "vault" }
+luckperms-api = { module = "net.luckperms:api", version.ref = "luckperms" }
+placeholderapi = { module = "me.clip:placeholderapi", version.ref = "placeholderapi" }
+```
+
+### Using Dependencies
+
+In a plugin's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+  compileOnly(libs.purpur.api)
+  compileOnly(libs.vault.api)
+  compileOnly(libs.luckperms.api)
+  
+  // Plugin dependencies are compileOnly
+  // Shadow plugin handles embedding if needed
+}
+```
+
+<Tip>
+  Use `compileOnly` for server-provided APIs (Purpur, Vault, LuckPerms) and `implementation` for libraries you want to shade into your plugin JAR.
+</Tip>
+
+## Available Libraries
+
+<Tabs>
+  <Tab title="Server APIs">
+    ```kotlin
+    dependencies {
+      compileOnly(libs.purpur.api)      // Purpur server API
+      compileOnly(libs.vault.api)       // Vault economy/permissions
+      compileOnly(libs.luckperms.api)   // LuckPerms permissions
+      compileOnly(libs.placeholderapi)  // PlaceholderAPI
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Plugin APIs">
+    ```kotlin
+    dependencies {
+      compileOnly(libs.discordsrv)           // Discord integration
+      compileOnly(libs.nuvotifier)           // Vote listener
+      compileOnly(libs.tokenmanager)         // Token economy
+      compileOnly(libs.worldborder)          // World border API
+      compileOnly(libs.ultimateadvancementapi) // Custom advancements
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Libraries">
+    ```kotlin
+    dependencies {
+      implementation(libs.kotlin.stdlib)        // Kotlin standard library
+      implementation(libs.gson)                 // JSON serialization
+      implementation(libs.javacord)             // Discord bot
+      implementation(libs.discord.webhooks)     // Discord webhooks
+      implementation(libs.anvilgui)             // Anvil GUI API
+      implementation(libs.inventoryframework)   // Inventory GUI framework
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Plugin Development
+
+### Basic Plugin Class
+
+A minimal plugin extends `JavaPlugin`:
+
+```kotlin
+package com.oyasai.pluginname
+
+import org.bukkit.plugin.java.JavaPlugin
+
+class PluginNamePlugin : JavaPlugin() {
+    override fun onEnable() {
+        logger.info("${description.name} v${description.version} enabled")
+        
+        // Register commands
+        // Register event listeners
+        // Load configuration
+    }
+    
+    override fun onDisable() {
+        logger.info("${description.name} disabled")
+        
+        // Save data
+        // Cancel tasks
+        // Cleanup resources
+    }
+}
+```
+
+### Command Registration
+
+```kotlin
+class PluginNamePlugin : JavaPlugin() {
+    override fun onEnable() {
+        getCommand("commandname")?.setExecutor(MyCommandExecutor(this))
+    }
+}
+
+class MyCommandExecutor(private val plugin: PluginNamePlugin) : CommandExecutor {
+    override fun onCommand(
+        sender: CommandSender,
+        command: Command,
+        label: String,
+        args: Array<out String>
+    ): Boolean {
+        if (!sender.hasPermission("pluginname.command")) {
+            sender.sendMessage("You don't have permission!")
+            return true
+        }
+        
+        // Command logic
+        return true
+    }
+}
+```
+
+### Event Listeners
+
+```kotlin
+class PlayerJoinListener(private val plugin: PluginNamePlugin) : Listener {
+    @EventHandler
+    fun onPlayerJoin(event: PlayerJoinEvent) {
+        val player = event.player
+        plugin.logger.info("${player.name} joined the server")
+    }
+}
+
+// Register in onEnable
+server.pluginManager.registerEvents(PlayerJoinListener(this), this)
+```
+
+### Configuration
+
+```kotlin
+class PluginNamePlugin : JavaPlugin() {
+    override fun onEnable() {
+        saveDefaultConfig()
+        
+        val someValue = config.getString("some.key", "default")
+        val enabled = config.getBoolean("enabled", true)
+    }
+    
+    fun reloadPluginConfig() {
+        reloadConfig()
+        // Re-read values
+    }
+}
+```
+
+## Nix Integration
+
+Plugins are built via Nix using gradle2nix:
+
+### Batch Building
+
+All plugins are compiled together for efficiency:
+
+```nix
+# From nix/oyasai-scope.nix
+plugins-batch = scopeSelf.gradle2nix.buildGradlePackage {
+  pname = "plugins";
+  version = "0.0.0";
+  src = with lib.fileset; toSource {
+    root = ../.; 
+    fileset = unions [
+      ../build.gradle.kts
+      ../gradle
+      ../plugins
+      ../settings.gradle.kts
+    ];
+  };
+  inherit (scopeSelf) gradle;
+  buildJdk = scopeSelf.jdk;
+  lockFile = ../gradle.lock;
+  gradleBuildFlags = [ "build" ];
+  installPhase = ''
+    runHook preInstall
+    mkdir -p $out
+    cp plugins/*/build/libs/*.jar $out
+    runHook postInstall
+  '';
+};
+```
+
+### Individual Plugin Derivations
+
+Each plugin gets a lightweight derivation:
+
+```nix
+plugins = lib.mapAttrs' (
+  name: _:
+  lib.nameValuePair (lib.toLower name) (
+    pkgs.runCommand name { } ''
+      mkdir -p $out
+      cp ${plugins-batch}/${name}.jar $out
+    ''
+  )
+) (builtins.readDir ../plugins);
+```
+
+This creates:
+- `oyasai-plugins.oyasaiutilities`
+- `oyasai-plugins.oyasaipets`
+- `oyasai-plugins.oyasaiadmintools`
+- etc.
+
+### Building Plugins
+
+```bash
+# Build all plugins
+nix build .#legacyPackages.x86_64-linux.plugins-batch
+
+# Build specific plugin
+nix build .#legacyPackages.x86_64-linux.oyasai-plugins.oyasaiutilities
+
+# Development build with Gradle
+nix develop
+gradle :plugins:OyasaiUtilities:build
+```
+
+## Plugin Registry
+
+Third-party plugins are managed via the plugin registry:
+
+```nix
+# From plugin registry usage
+plugins = with (oyasai-plugin-registry.forVersion version); [
+  essentialsx
+  fastasyncworldedit
+  luckperms
+  plugmanx
+  protocollib
+  vault
+  nuvotifier
+  vertex
+];
+```
+
+The registry provides version-specific plugin JARs with verified hashes.
+
+## Server Integration
+
+Plugins are integrated into server packages:
+
+```nix
+# packages/oyasai-minecraft-main.nix
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-main";
+  version = "1.21.8";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    # Third-party plugins
+    essentialsx
+    luckperms
+    vault
+    
+    # Custom plugins (from oyasaiScope.plugins)
+    vertex
+  ];
+}
+```
+
+The `oyasaiPurpur` function:
+1. Fetches the Purpur server JAR
+2. Creates a setup script to copy plugins
+3. Wraps the server with the setup script
+4. Accepts EULA automatically
+
+## Development Workflow
+
+<Steps>
+  <Step title="Create Plugin Directory">
+    ```bash
+    mkdir -p plugins/MyPlugin/src/main/{kotlin,resources}
+    ```
+  </Step>
+  
+  <Step title="Create build.gradle.kts">
+    ```kotlin
+    dependencies {
+      compileOnly(libs.purpur.api)
+    }
+    ```
+  </Step>
+  
+  <Step title="Create plugin.yml">
+    ```yaml
+    name: MyPlugin
+    version: ${version}
+    main: com.oyasai.myplugin.MyPlugin
+    api-version: '1.21'
+    ```
+  </Step>
+  
+  <Step title="Implement Plugin Class">
+    ```kotlin
+    package com.oyasai.myplugin
+    
+    import org.bukkit.plugin.java.JavaPlugin
+    
+    class MyPlugin : JavaPlugin() {
+        override fun onEnable() {
+            logger.info("MyPlugin enabled!")
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Build and Test">
+    ```bash
+    # Build with Gradle (fast iteration)
+    gradle :plugins:MyPlugin:build
+    
+    # Build with Nix (reproducible)
+    nix build .#legacyPackages.x86_64-linux.oyasai-plugins.myplugin
+    ```
+  </Step>
+</Steps>
+
+## Testing Plugins
+
+### Local Testing
+
+```bash
+# Build plugin
+gradle :plugins:MyPlugin:build
+
+# Copy to test server
+cp plugins/MyPlugin/build/libs/MyPlugin.jar ~/test-server/plugins/
+
+# Restart server
+cd ~/test-server
+./start.sh
+```
+
+### Nix Testing
+
+Create a minimal server configuration:
+
+```nix
+# packages/oyasai-minecraft-test.nix
+{ oyasaiPurpur, oyasai-plugin-registry }:
+
+oyasaiPurpur rec {
+  name = "oyasai-minecraft-test";
+  version = "1.21.8";
+  
+  plugins = with (oyasai-plugin-registry.forVersion version); [
+    # Minimal dependencies
+    vault
+  ] ++ [
+    # Your plugin from the batch build
+    oyasaiScope.plugins.myplugin
+  ];
+}
+```
+
+Build and run:
+
+```bash
+nix build .#oyasai-minecraft-test
+./result/bin/minecraft-server
+```
+
+## Existing Plugins
+
+<CardGroup cols={2}>
+  <Card title="OyasaiUtilities" icon="wrench">
+    Core utility functions and helper commands for server administration
+  </Card>
+  
+  <Card title="OyasaiPets" icon="paw">
+    Pet management system with customization and companion features
+  </Card>
+  
+  <Card title="OyasaiAdminTools" icon="shield">
+    Administrative tools and moderation commands
+  </Card>
+  
+  <Card title="DynamicProfile" icon="user">
+    Player profile customization and display options
+  </Card>
+  
+  <Card title="EntityPose" icon="rotate">
+    Controls for entity positioning and rotation
+  </Card>
+  
+  <Card title="PaintTools" icon="paintbrush">
+    Creative building tools and utilities
+  </Card>
+  
+  <Card title="SocialLikes3" icon="heart">
+    Social interaction system with likes and reactions
+  </Card>
+  
+  <Card title="SocialVotes" icon="vote-yea">
+    Voting and polling system for community decisions
+  </Card>
+  
+  <Card title="TPswitch" icon="shuffle">
+    Teleportation utilities and waypoint management
+  </Card>
+  
+  <Card title="Vertex" icon="cube">
+    Custom functionality plugin
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Warning>
+  Always use `compileOnly` for server-provided APIs to avoid JAR bloat and class conflicts.
+</Warning>
+
+<Tip>
+  Use the version catalog for all dependencies to ensure consistency across plugins.
+</Tip>
+
+<Note>
+  Plugin names in Nix are automatically lowercased (e.g., `OyasaiUtilities` becomes `oyasaiutilities`).
+</Note>
+
+<Tip>
+  When developing, use Gradle for fast iteration and Nix for final reproducible builds.
+</Tip>
+
+## Dependency Updates
+
+Update Gradle dependencies:
+
+```bash
+# Enter dev shell
+nix develop
+
+# Update gradle.lock
+gradle2nix > gradle.lock
+
+# Commit changes
+git add gradle.lock
+git commit -m "Update Gradle dependencies"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Plugin not loading">
+    Check:
+    - `plugin.yml` has correct `main` class
+    - Version in `plugin.yml` uses `${version}` placeholder
+    - Plugin JAR is in server's `plugins/` directory
+    - Server console for error messages
+  </Accordion>
+  
+  <Accordion title="ClassNotFoundException">
+    Ensure dependencies are properly shaded:
+    
+    ```kotlin
+    dependencies {
+      implementation(libs.some.library) // Will be shaded
+      compileOnly(libs.purpur.api)     // Server provides
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Build fails in Nix">
+    Regenerate the lock file:
+    
+    ```bash
+    nix develop
+    gradle2nix > gradle.lock
+    ```
+  </Accordion>
+  
+  <Accordion title="Permission denied errors">
+    Check plugin.yml permissions:
+    
+    ```yaml
+    permissions:
+      myplugin.command:
+        default: op  # or: true, false, op
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Understand the overall system architecture
+  </Card>
+  <Card title="Monorepo Structure" icon="folder-tree" href="/architecture/monorepo-structure">
+    Learn about project organization
+  </Card>
+</CardGroup>

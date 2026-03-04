@@ -1,80 +1,388 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get your development environment running and launch your first Oyasai Minecraft server
 ---
 
-## Get started in three steps
+# Quickstart
 
-Get your documentation site running locally and make your first customization.
+This guide will get you from zero to running a local Purpur server with the Oyasai platform in under 10 minutes.
 
-### Step 1: Set up your local environment
+## Prerequisites
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Warning>
+  **Windows Users**: You must use WSL (Windows Subsystem for Linux). Install WSL first, then complete all steps inside your WSL terminal.
+</Warning>
 
-### Step 2: Deploy your changes
+Before you begin, ensure you have:
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+- A Unix-like environment (Linux, macOS, or WSL on Windows)
+- At least 4GB of free disk space
+- Internet connection for downloading dependencies
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+## Installation
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+<Steps>
+  <Step title="Install Nix">
+    Download and install Nix from [nixos.org](https://nixos.org/download/). The multi-user installation is recommended, but single-user works too.
 
-### Step 3: Go live
+    ```bash
+    curl -L https://nixos.org/nix/install | sh
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    After installation completes, **restart your terminal** or source the Nix profile:
 
-## Next steps
+    ```bash
+    . ~/.nix-profile/etc/profile.d/nix.sh
+    ```
 
-Now that you have your docs running, explore these key features:
+    Verify the installation:
 
-<CardGroup cols={2}>
+    ```bash
+    nix --version
+    ```
+  </Step>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+  <Step title="Enable Experimental Features">
+    Nix flakes and the `nix` command are experimental features that must be explicitly enabled.
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+    ```bash
+    mkdir -p ~/.config/nix
+    echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+    ```
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+    <Note>
+      These features are stable and widely used, but remain "experimental" in Nix terminology.
+    </Note>
+  </Step>
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+  <Step title="Clone the Repository">
+    Clone the platform repository to your local machine:
 
-</CardGroup>
+    ```bash
+    git clone https://github.com/oyasaiserver/platform.git
+    cd platform
+    ```
+  </Step>
+
+  <Step title="Verify Flake Configuration">
+    Test that Nix can read the flake configuration:
+
+    ```bash
+    nix flake show
+    ```
+
+    You should see output listing available packages and development shells. If you see errors, check that experimental features are enabled.
+  </Step>
+
+  <Step title="Enter Development Shell">
+    The development shell contains all tools needed for development: Java, Gradle, Node.js, Terraform, and more.
+
+    ```bash
+    nix develop
+    ```
+
+    This command will:
+    - Download all required dependencies
+    - Set up the development environment
+    - Drop you into a shell with all tools available
+
+    <Note>
+      The first run will take several minutes as Nix downloads and builds dependencies. Subsequent runs are nearly instant.
+    </Note>
+
+    Verify you have the required tools:
+
+    ```bash
+    java --version
+    gradle --version
+    ```
+  </Step>
+</Steps>
+
+## Running Your First Server
+
+Now that your environment is set up, let's run a Minecraft server.
+
+<Steps>
+  <Step title="Run the Minimal Server">
+    The platform includes a pre-configured minimal server for testing:
+
+    ```bash
+    nix run .#oyasai-minecraft-minimal
+    ```
+
+    This command will:
+    - Download Purpur server version 1.21.8
+    - Install essential plugins (EssentialsX, FastAsyncWorldEdit, PlugManX)
+    - Accept the EULA automatically
+    - Create a `local/` directory
+    - Start the server on port 25565
+
+    <Warning>
+      The first run downloads the server JAR and may take a few minutes. The server will generate world files in the `local/` directory.
+    </Warning>
+  </Step>
+
+  <Step title="Connect to Your Server">
+    Once the server shows `Done!` in the console, open Minecraft:
+
+    1. Launch Minecraft Java Edition version 1.21.8
+    2. Go to Multiplayer → Add Server
+    3. Server Address: `localhost:25565`
+    4. Connect and play!
+
+    To stop the server, type `stop` in the console or press `Ctrl+C`.
+  </Step>
+
+  <Step title="Explore Server Files">
+    All server files are in the `local/` directory:
+
+    ```bash
+    ls -la local/
+    ```
+
+    You'll find:
+    - `plugins/` - Installed plugin JARs
+    - `world/` - World data
+    - `server.properties` - Server configuration
+    - `logs/` - Server logs
+
+    <Note>
+      The `local/` directory is gitignored and safe to delete. Running the server again will recreate it.
+    </Note>
+  </Step>
+</Steps>
+
+## Building Plugins
+
+Let's build the custom Oyasai plugins from source.
+
+<Steps>
+  <Step title="Build All Plugins">
+    From the repository root, inside the development shell:
+
+    ```bash
+    gradle build --parallel
+    ```
+
+    This builds all plugins in the `plugins/` directory concurrently.
+  </Step>
+
+  <Step title="Build a Specific Plugin">
+    To build just one plugin:
+
+    ```bash
+    gradle :plugins:OyasaiUtilities:build
+    ```
+
+    Replace `OyasaiUtilities` with any plugin name:
+    - `DynamicProfile`
+    - `EntityPose`
+    - `OyasaiAdminTools`
+    - `OyasaiPets`
+    - `PaintTools`
+    - And more...
+
+    Built JARs are located in `plugins/<name>/build/libs/`.
+  </Step>
+
+  <Step title="Update Dependencies">
+    If you modify plugin dependencies in `build.gradle.kts`, regenerate the lock file:
+
+    ```bash
+    gradle2nix
+    ```
+
+    This updates `gradle.lock` with the new dependency graph for Nix.
+  </Step>
+</Steps>
+
+## Creating a Custom Server Configuration
+
+Create your own server configuration for development or testing.
+
+<Steps>
+  <Step title="Create Configuration File">
+    Create a new Nix file in `packages/`:
+
+    ```bash packages/oyasai-minecraft-dev.nix
+    { oyasaiPurpur, oyasai-plugin-registry }:
+
+    oyasaiPurpur rec {
+      name = "oyasai-minecraft-dev";
+      version = "1.21.8";
+
+      directory = "dev-server";
+      port = 25566;  # Different port to run alongside other servers
+
+      plugins = with (oyasai-plugin-registry.forVersion version); [
+        essentialsx
+        fastasyncworldedit
+        plugmanx
+        vault
+      ];
+    }
+    ```
+
+    <Note>
+      Available plugins are defined in `packages/oyasai-plugin-registry/data.json`. The `forVersion` function filters plugins compatible with your Minecraft version.
+    </Note>
+  </Step>
+
+  <Step title="Register Configuration">
+    Add your configuration to the build system by editing `nix/oyasai-scope.nix`.
+
+    Find the `packages` section (around line 126) and add your config:
+
+    ```nix
+    packages = lib.filterAttrs (_: availableOnSystem) {
+      inherit (oyasaiScope)
+        # keep-sorted start
+        oyasai-minecraft-dev
+        oyasai-minecraft-main
+        oyasai-minecraft-marzipan
+        oyasai-minecraft-minimal
+        # keep-sorted end
+        ;
+    };
+    ```
+  </Step>
+
+  <Step title="Stage and Run">
+    Git must track the file for Nix to see it:
+
+    ```bash
+    git add packages/oyasai-minecraft-dev.nix
+    git add nix/oyasai-scope.nix
+    ```
+
+    Now run your custom server:
+
+    ```bash
+    nix run .#oyasai-minecraft-dev
+    ```
+
+    Your server will start in the `dev-server/` directory on port 25566.
+  </Step>
+</Steps>
+
+## Code Formatting
+
+The platform enforces consistent code formatting across all files.
+
+<Steps>
+  <Step title="Format All Code">
+    Before committing changes, format your code:
+
+    ```bash
+    nix fmt
+    ```
+
+    This formats:
+    - Nix files
+    - Kotlin files
+    - TypeScript/JavaScript files
+    - Configuration files
+  </Step>
+
+  <Step title="Verify Formatting in CI">
+    The CI pipeline will reject unformatted code. Always run `nix fmt` before pushing.
+
+    <Warning>
+      Pull requests with formatting issues will fail CI checks and cannot be merged.
+    </Warning>
+  </Step>
+</Steps>
+
+## Running Tests and Checks
+
+Before submitting changes, verify everything builds correctly.
+
+```bash
+nix flake check -L
+```
+
+This command:
+- Builds all packages
+- Runs all tests (if defined)
+- Verifies Nix expressions
+- Shows detailed logs with `-L`
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  This is the same check that runs in CI. If it passes locally, it should pass in CI.
 </Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin Development" icon="code" href="/plugins/overview">
+    Learn how to create and modify Minecraft plugins
+  </Card>
+  
+  <Card title="Server Configuration" icon="gear" href="/operations/server-configuration">
+    Advanced server configuration with custom plugins and settings
+  </Card>
+  
+  <Card title="Contributing Guide" icon="git-alt" href="/development/contributing">
+    Learn about PR conventions, code review, and development workflow
+  </Card>
+  
+  <Card title="Nix Flakes" icon="book" href="/architecture/nix-flakes">
+    Understand how Nix flakes work in this project
+  </Card>
+</CardGroup>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="nix: command not found">
+    Nix is not in your PATH. Restart your terminal or source the Nix profile:
+
+    ```bash
+    . ~/.nix-profile/etc/profile.d/nix.sh
+    ```
+  </Accordion>
+
+  <Accordion title="error: experimental Nix feature 'flakes' is disabled">
+    Flakes are not enabled. Run:
+
+    ```bash
+    mkdir -p ~/.config/nix
+    echo 'experimental-features = nix-command flakes' >> ~/.config/nix/nix.conf
+    ```
+  </Accordion>
+
+  <Accordion title="Server fails to start with port already in use">
+    Another server is running on port 25565. Either:
+    - Stop the existing server
+    - Change the port in your server configuration
+    
+    ```nix
+    port = 25566;  # Use a different port
+    ```
+  </Accordion>
+
+  <Accordion title="gradle2nix: command not found">
+    You're not in the development shell. Run:
+
+    ```bash
+    nix develop
+    ```
+  </Accordion>
+
+  <Accordion title="CI fails but local checks pass">
+    Ensure you've:
+    1. Run `nix fmt` to format code
+    2. Run `nix flake check -L` successfully
+    3. Committed all changes including `gradle.lock`
+  </Accordion>
+</AccordionGroup>
+
+## Getting Help
+
+If you encounter issues not covered here:
+
+- Check existing GitHub issues
+- Review the CONTRIBUTING.md file
+- Ask in the development Discord (if available)
+- Open a new GitHub issue with detailed information
