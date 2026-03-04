@@ -1,0 +1,119 @@
+{
+  "projectType": "infrastructure",
+  "projectName": "Oyasai Server Platform",
+  "projectDescription": "Infrastructure and plugin platform for Oyasai Minecraft server built with Nix, Gradle, and Kotlin",
+  "theme": "aspen",
+  "primaryColor": "#242b2c",
+  "lightColor": "#040404",
+  "darkColor": "#6a6a6d",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Setup & Deployment",
+            "pages": [
+              "setup/prerequisites",
+              "setup/development-environment",
+              "setup/building",
+              "setup/deployment"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/monorepo-structure",
+              "architecture/nix-flakes",
+              "architecture/plugin-system"
+            ]
+          },
+          {
+            "group": "Plugins",
+            "pages": [
+              "plugins/overview",
+              "plugins/oyasai-utilities",
+              "plugins/oyasai-admin-tools",
+              "plugins/oyasai-pets",
+              "plugins/dynamic-profile",
+              "plugins/entity-pose",
+              "plugins/paint-tools",
+              "plugins/social-likes",
+              "plugins/social-votes",
+              "plugins/tpswitch",
+              "plugins/vertex"
+            ]
+          },
+          {
+            "group": "Operations",
+            "pages": [
+              "operations/server-configuration",
+              "operations/plugin-management",
+              "operations/monitoring",
+              "operations/backups"
+            ]
+          },
+          {
+            "group": "Development",
+            "pages": [
+              "development/plugin-development",
+              "development/gradle-workflow",
+              "development/nix-packages",
+              "development/testing",
+              "development/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Plugin APIs",
+            "pages": [
+              "api/oyasai-utilities",
+              "api/common-interfaces"
+            ]
+          },
+          {
+            "group": "Server Configurations",
+            "pages": [
+              "api/server-configs",
+              "api/nix-modules"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Nix-based infrastructure management with flakes",
+    "10 custom Minecraft plugins built with Kotlin",
+    "Gradle build system with parallel builds",
+    "Docker containerization for Purpur servers",
+    "Plugin registry and version management",
+    "Automated CI/CD with flake checks",
+    "Development environment with devshell",
+    "Infrastructure as Code with NixOS modules"
+  ],
+  "publicApiSurface": [
+    "OyasaiUtilities - Utility functions for plugins",
+    "OyasaiAdminTools - Admin and player management commands",
+    "OyasaiPets - Pet summoning system",
+    "DynamicProfile - Player profile management",
+    "EntityPose - Entity positioning utilities",
+    "PaintTools - Creative tools for players",
+    "SocialLikes3 - Social interaction system",
+    "SocialVotes - Voting system",
+    "TPswitch - Teleport management",
+    "Vertex - Core plugin framework",
+    "oyasai-minecraft-main - Production server configuration",
+    "oyasai-minecraft-minimal - Minimal development server",
+    "oyasai-plugin-registry - Plugin version management"
+  ]
+}
